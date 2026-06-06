@@ -1,9 +1,10 @@
 import Link from "next/link";
 
 const navLinks = [
-  { href: "#features", label: "Features" },
-  { href: "#stats", label: "Impact" },
-  { href: "#cta", label: "Get Started" },
+  { href: "/opportunities", label: "Opportunities" },
+  { href: "/#features", label: "Features" },
+  { href: "/#stats", label: "Impact" },
+  { href: "/#cta", label: "Get Started" },
 ];
 
 export function Header() {
@@ -37,13 +38,13 @@ export function Header() {
 
         <nav className="hidden items-center gap-8 md:flex" aria-label="Main">
           {navLinks.map((link) => (
-            <a
+            <Link
               key={link.href}
               href={link.href}
               className="text-sm text-zinc-400 transition-colors hover:text-white"
             >
               {link.label}
-            </a>
+            </Link>
           ))}
         </nav>
 

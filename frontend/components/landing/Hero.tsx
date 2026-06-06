@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 const opportunityTypes = [
   { label: "Internships", color: "from-violet-500/20 to-violet-500/5 border-violet-500/20" },
   { label: "Hackathons", color: "from-cyan-500/20 to-cyan-500/5 border-cyan-500/20" },
@@ -33,15 +35,15 @@ export function Hero() {
           </p>
 
           <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <a
-              href="#cta"
+            <Link
+              href="/opportunities"
               className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-indigo-500 to-cyan-500 px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/30 transition-all hover:shadow-indigo-500/50 sm:w-auto"
             >
               Start exploring free
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
               </svg>
-            </a>
+            </Link>
             <a
               href="#features"
               className="inline-flex w-full items-center justify-center rounded-full border border-white/10 bg-white/5 px-8 py-3.5 text-sm font-semibold text-white backdrop-blur-sm transition-all hover:border-white/20 hover:bg-white/10 sm:w-auto"
