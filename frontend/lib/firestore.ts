@@ -2,6 +2,9 @@ import {
   doc,
   getDoc,
   setDoc,
+  collection,
+  getDocs,
+  deleteDoc,
   serverTimestamp,
 } from "firebase/firestore";
 import { getFirebaseDb } from "@/lib/firebase/config";
@@ -43,4 +46,29 @@ export async function saveProfile(
     { ...profile, updatedAt: serverTimestamp() },
     { merge: true }
   );
+}
+
+/**
+ * Save an opportunity for a user.
+ */
+export async function saveOpportunity(uid: string, opportunityId: string): Promise<void> {
+  const ref = doc(getFirebaseDb(), "users", uid, "saved_opportunities", opportunityId);
+  await setDoc(ref, { savedAt: serverTimestamp() });
+}
+
+/**
+ * Unsave/remove a bookmarked opportunity for a user.
+ */
+export async function unsaveOpportunity(uid: string, opportunityId: string): Promise<void> {
+  const ref = doc(getFirebaseDb(), "users", uid, "saved_opportunities", opportunityId);
+  await deleteDoc(ref);
+}
+
+/**
+ * Fetch all saved opportunity IDs for a user.
+ */
+export async function getSavedOpportunities(uid: string): Promise<string[]> {
+  const colRef = collection(getFirebaseDb(), "users", uid, "saved_opportunities");
+  const snap = await getDocs(colRef);
+  return snap.docs.map((d) => d.id);
 }

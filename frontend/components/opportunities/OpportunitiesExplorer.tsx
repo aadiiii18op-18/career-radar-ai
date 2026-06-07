@@ -1,6 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthProvider";
+import { useRouter } from "next/navigation";
+import { getProfile, getSavedOpportunities, saveOpportunity, unsaveOpportunity } from "@/lib/firestore";
+import { calculateMatchScore } from "@/lib/match-score";
 import {
   ALL_CATEGORIES,
   categoryFilters,
@@ -8,6 +12,7 @@ import {
 } from "@/lib/categories";
 import type { Opportunity } from "@/types/opportunity";
 import { OpportunityCard } from "./OpportunityCard";
+import type { UserProfile } from "@/types/profile";
 
 interface OpportunitiesExplorerProps {
   opportunities: Opportunity[];
@@ -16,6 +21,64 @@ interface OpportunitiesExplorerProps {
 export function OpportunitiesExplorer({ opportunities }: OpportunitiesExplorerProps) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<CategoryFilter>(ALL_CATEGORIES);
+  const { user } = useAuth();
+  const router = useRouter();
+  const [savedIds, setSavedIds] = useState<string[]>([]);
+  const [profile, setProfile] = useState<Omit<UserProfile, "updatedAt"> | null>(null);
+
+  // Fetch profile on mount/user change
+  useEffect(() => {
+    if (user?.uid) {
+      getProfile(user.uid)
+        .then(setProfile)
+        .catch((err) => console.error("Error fetching profile:", err));
+    } else {
+      Promise.resolve().then(() => {
+        setProfile(null);
+      });
+    }
+  }, [user]);
+
+  // Fetch saved opportunities on mount/user change
+  useEffect(() => {
+    if (user?.uid) {
+      getSavedOpportunities(user.uid)
+        .then(setSavedIds)
+        .catch((err) => console.error("Error fetching saved opportunities:", err));
+    } else {
+      Promise.resolve().then(() => {
+        setSavedIds([]);
+      });
+    }
+  }, [user]);
+
+  const handleToggleSave = async (oppId: string) => {
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+
+    const isSaved = savedIds.includes(oppId);
+    // Optimistic Update
+    setSavedIds((prev) =>
+      isSaved ? prev.filter((id) => id !== oppId) : [...prev, oppId]
+    );
+
+    try {
+      if (isSaved) {
+        await unsaveOpportunity(user.uid, oppId);
+      } else {
+        await saveOpportunity(user.uid, oppId);
+      }
+      window.dispatchEvent(new Event("bookmark-updated"));
+    } catch (err) {
+      console.error("Failed to save/unsave bookmark:", err);
+      // Revert optimistic update
+      setSavedIds((prev) =>
+        isSaved ? [...prev, oppId] : prev.filter((id) => id !== oppId)
+      );
+    }
+  };
 
   const filtered = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -98,9 +161,19 @@ export function OpportunitiesExplorer({ opportunities }: OpportunitiesExplorerPr
 
       {filtered.length > 0 ? (
         <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((opportunity) => (
-            <OpportunityCard key={opportunity.id} opportunity={opportunity} />
-          ))}
+          {filtered.map((opportunity) => {
+            const { score, reasons } = calculateMatchScore(profile, opportunity);
+            return (
+              <OpportunityCard
+                key={opportunity.id}
+                opportunity={opportunity}
+                isSaved={savedIds.includes(opportunity.id)}
+                onToggleSave={() => handleToggleSave(opportunity.id)}
+                matchScore={user ? score : undefined}
+                matchReasons={user ? reasons : undefined}
+              />
+            );
+          })}
         </div>
       ) : (
         <div className="mt-16 rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-6 py-16 text-center">

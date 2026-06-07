@@ -4,9 +4,19 @@ import type { Opportunity } from "@/types/opportunity";
 
 interface OpportunityCardProps {
   opportunity: Opportunity;
+  isSaved?: boolean;
+  onToggleSave?: () => void;
+  matchScore?: number;
+  matchReasons?: string[];
 }
 
-export function OpportunityCard({ opportunity }: OpportunityCardProps) {
+export function OpportunityCard({
+  opportunity,
+  isSaved,
+  onToggleSave,
+  matchScore,
+  matchReasons,
+}: OpportunityCardProps) {
   const styles = categoryStyles[opportunity.category];
   const daysLeft = daysUntilDeadline(opportunity.deadline);
   const urgency =
@@ -19,17 +29,56 @@ export function OpportunityCard({ opportunity }: OpportunityCardProps) {
   return (
     <article className="group flex flex-col rounded-2xl border border-white/5 bg-white/[0.02] p-6 transition-all hover:border-white/10 hover:bg-white/[0.04]">
       <div className="flex items-start justify-between gap-4">
-        <span
-          className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${styles.badge}`}
-        >
-          {opportunity.category}
-        </span>
-        <time
-          dateTime={opportunity.deadline}
-          className={`shrink-0 text-xs font-medium ${urgency}`}
-        >
-          {daysLeft > 0 ? `${daysLeft}d left` : daysLeft === 0 ? "Due today" : "Closed"}
-        </time>
+        <div className="flex flex-wrap items-center gap-2">
+          <span
+            className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${styles.badge}`}
+          >
+            {opportunity.category}
+          </span>
+          {matchScore !== undefined && (
+            <span className="inline-flex shrink-0 items-center rounded-full bg-indigo-500/10 px-2.5 py-1 text-xs font-semibold text-indigo-400 ring-1 ring-inset ring-indigo-500/20">
+              ⚡ {matchScore}% Match
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <time
+            dateTime={opportunity.deadline}
+            className={`shrink-0 text-xs font-medium ${urgency}`}
+          >
+            {daysLeft > 0 ? `${daysLeft}d left` : daysLeft === 0 ? "Due today" : "Closed"}
+          </time>
+          {onToggleSave && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                onToggleSave();
+              }}
+              className={`rounded-full p-1.5 transition-all cursor-pointer ${
+                isSaved
+                  ? "bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20"
+                  : "bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10"
+              }`}
+              aria-label={isSaved ? "Unsave opportunity" : "Save opportunity"}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill={isSaved ? "currentColor" : "none"}
+                stroke="currentColor"
+                strokeWidth={2}
+                className="h-4 w-4"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z"
+                />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       <h2 className="mt-4 text-lg font-semibold leading-snug text-white group-hover:text-indigo-100">
@@ -41,6 +90,19 @@ export function OpportunityCard({ opportunity }: OpportunityCardProps) {
       <p className="mt-3 flex-1 text-sm leading-relaxed text-zinc-400 line-clamp-3">
         {opportunity.description}
       </p>
+
+      {matchReasons && matchReasons.length > 0 && (
+        <div className="mt-4 flex flex-wrap gap-1.5">
+          {matchReasons.map((reason, idx) => (
+            <span
+              key={idx}
+              className="inline-flex items-center rounded bg-white/5 px-2 py-0.5 text-[10px] font-medium text-zinc-400 border border-white/5"
+            >
+              • {reason}
+            </span>
+          ))}
+        </div>
+      )}
 
       <div className="mt-5 flex items-center justify-between gap-4 border-t border-white/5 pt-5">
         <p className="text-xs text-zinc-500">
