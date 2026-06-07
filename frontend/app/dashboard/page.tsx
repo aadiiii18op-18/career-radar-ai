@@ -34,7 +34,15 @@ export default function DashboardPage() {
                 </h1>
                 <DashboardContent />
               </div>
-              <LogoutButton variant="primary" className="shrink-0 self-start sm:self-auto" />
+              <div className="flex flex-wrap items-center gap-3 shrink-0 self-start sm:self-auto">
+                <Link
+                  href="/profile"
+                  className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 to-cyan-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-500/20 transition-all hover:shadow-indigo-500/40"
+                >
+                  Edit Profile
+                </Link>
+                <LogoutButton variant="primary" className="shrink-0" />
+              </div>
             </div>
 
             <div className="relative mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">

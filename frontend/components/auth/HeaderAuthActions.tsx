@@ -25,6 +25,12 @@ export function HeaderAuthActions() {
         >
           Dashboard
         </Link>
+        <Link
+          href="/profile"
+          className="hidden rounded-full px-4 py-2 text-sm font-medium text-zinc-300 transition-colors hover:text-white sm:inline-flex"
+        >
+          Profile
+        </Link>
         <LogoutButton />
       </div>
     );

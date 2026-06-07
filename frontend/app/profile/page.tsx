@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { onAuthStateChanged, type User } from "firebase/auth";
-import { getFirebaseAuth } from "@/lib/firebase/config";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { useAuth } from "@/contexts/AuthProvider";
+import { Header } from "@/components/landing/Header";
+import { Footer } from "@/components/landing/Footer";
 import { getProfile, saveProfile } from "@/lib/firestore";
 import {
   type UserProfile,
@@ -157,9 +158,7 @@ function Field({
 // ─── Profile page ──────────────────────────────────────────────────────────
 
 export default function ProfilePage() {
-  const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  const { user } = useAuth();
   const [profileLoading, setProfileLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
@@ -178,20 +177,6 @@ export default function ProfilePage() {
     key: K,
     value: (typeof form)[K]
   ) => setForm((f) => ({ ...f, [key]: value }));
-
-  // ── Auth guard — uses getFirebaseAuth() matching project pattern ──────────
-  useEffect(() => {
-    // getFirebaseAuth() is client-only; safe here because this is "use client"
-    const unsub = onAuthStateChanged(getFirebaseAuth(), (u) => {
-      if (!u) {
-        router.push("/login");
-      } else {
-        setUser(u);
-      }
-      setAuthLoading(false);
-    });
-    return unsub;
-  }, [router]);
 
   // ── Load profile once user is known ───────────────────────────────────────
   const loadProfile = useCallback(async (uid: string) => {
@@ -216,7 +201,11 @@ export default function ProfilePage() {
   }, []);
 
   useEffect(() => {
-    if (user?.uid) loadProfile(user.uid);
+    if (user?.uid) {
+      Promise.resolve().then(() => {
+        loadProfile(user.uid);
+      });
+    }
   }, [user, loadProfile]);
 
   // ── Save ──────────────────────────────────────────────────────────────────
@@ -237,26 +226,20 @@ export default function ProfilePage() {
     }
   };
 
-  // ── Auth loading spinner ──────────────────────────────────────────────────
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
-        <div className="w-8 h-8 rounded-full border-2 border-violet-500 border-t-transparent animate-spin" />
-      </div>
-    );
-  }
-
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white">
+    <ProtectedRoute>
+      <div className="mesh-bg flex min-h-full flex-col text-white">
+        <Header />
+        <main className="flex-1 pt-24 pb-20 sm:pt-28">
 
-      {/* Ambient glows */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-10%] left-[20%] w-[500px] h-[500px] rounded-full bg-violet-900/20 blur-[120px]" />
-        <div className="absolute bottom-[-5%] right-[10%] w-[400px] h-[400px] rounded-full bg-indigo-900/15 blur-[100px]" />
-      </div>
+          {/* Ambient glows */}
+          <div className="fixed inset-0 pointer-events-none overflow-hidden">
+            <div className="absolute top-[-10%] left-[20%] w-[500px] h-[500px] rounded-full bg-violet-900/20 blur-[120px]" />
+            <div className="absolute bottom-[-5%] right-[10%] w-[400px] h-[400px] rounded-full bg-indigo-900/15 blur-[100px]" />
+          </div>
 
-      <div className="relative z-10 max-w-3xl mx-auto px-4 py-12">
+          <div className="relative z-10 max-w-3xl mx-auto px-4">
 
         {/* Header */}
         <div className="mb-10">
@@ -412,17 +395,19 @@ export default function ProfilePage() {
                     </>
                   )}
                 </button>
-              </div>
-
             </div>
-          )}
-        </div>
+          </div>
+        )}
+      </div>
 
         <p className="text-center text-gray-700 text-xs mt-8">
           Your profile is private and used only to personalise your opportunity matches.
         </p>
 
+          </div>
+        </main>
+        <Footer />
       </div>
-    </div>
+    </ProtectedRoute>
   );
 }
