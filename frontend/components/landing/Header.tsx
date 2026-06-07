@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HeaderAuthActions } from "@/components/auth/HeaderAuthActions";
 
 const navLinks = [
   { href: "/opportunities", label: "Opportunities" },
@@ -48,20 +49,7 @@ export function Header() {
           ))}
         </nav>
 
-        <div className="flex items-center gap-3">
-          <a
-            href="#cta"
-            className="hidden rounded-full px-4 py-2 text-sm font-medium text-zinc-300 transition-colors hover:text-white sm:inline-flex"
-          >
-            Sign in
-          </a>
-          <a
-            href="#cta"
-            className="inline-flex items-center rounded-full bg-white px-4 py-2 text-sm font-semibold text-zinc-950 transition-all hover:bg-zinc-100 hover:shadow-lg hover:shadow-white/10"
-          >
-            Get early access
-          </a>
-        </div>
+        <HeaderAuthActions />
       </div>
     </header>
   );
