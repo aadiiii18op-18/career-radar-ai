@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
-import { DashboardContent, SavedOpportunitiesCount, SavedOpportunitiesSection, AIRecommendationsCount, AIRecommendationsSection } from "@/components/auth/DashboardContent";
+import { DashboardContent, SavedOpportunitiesCount, SavedOpportunitiesSection, AIRecommendationsCount, AIRecommendationsSection, ApplicationTrackerSummary, ApplicationTrackerBoard } from "@/components/auth/DashboardContent";
 import { Footer } from "@/components/landing/Footer";
 import { Header } from "@/components/landing/Header";
 
@@ -79,6 +79,8 @@ export default function DashboardPage() {
               <AIRecommendationsCount />
             </div>
 
+            <ApplicationTrackerSummary />
+            <ApplicationTrackerBoard />
             <SavedOpportunitiesSection />
             <AIRecommendationsSection />
           </div>

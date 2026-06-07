@@ -1,9 +1,20 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthProvider";
 import { useRouter } from "next/navigation";
-import { getOpportunities, getProfile, getSavedOpportunities, saveOpportunity, unsaveOpportunity } from "@/lib/firestore";
+import { 
+  getOpportunities, 
+  getProfile, 
+  getSavedOpportunities, 
+  saveOpportunity, 
+  unsaveOpportunity,
+  getApplications,
+  setApplicationStatus,
+  removeApplication,
+  type ApplicationStatus,
+  type Application
+} from "@/lib/firestore";
 import { calculateMatchScore } from "@/lib/match-score";
 import {
   ALL_CATEGORIES,
@@ -27,6 +38,7 @@ export function OpportunitiesExplorer({ opportunities = [] }: OpportunitiesExplo
   const [profile, setProfile] = useState<Omit<UserProfile, "updatedAt"> | null>(null);
   const [opportunitiesList, setOpportunitiesList] = useState<Opportunity[]>(opportunities);
   const [loadingOpps, setLoadingOpps] = useState(true);
+  const [applications, setApplications] = useState<Application[]>([]);
 
   // Fetch opportunities from Firestore on mount
   useEffect(() => {
@@ -51,8 +63,8 @@ export function OpportunitiesExplorer({ opportunities = [] }: OpportunitiesExplo
     }
   }, [user]);
 
-  // Fetch saved opportunities on mount/user change
-  useEffect(() => {
+  // Helper fetch functions
+  const fetchSaved = useCallback(() => {
     if (user?.uid) {
       getSavedOpportunities(user.uid)
         .then(setSavedIds)
@@ -63,6 +75,42 @@ export function OpportunitiesExplorer({ opportunities = [] }: OpportunitiesExplo
       });
     }
   }, [user]);
+
+  const fetchApplications = useCallback(() => {
+    if (user?.uid) {
+      getApplications(user.uid)
+        .then(setApplications)
+        .catch((err) => console.error("Error fetching applications:", err));
+    } else {
+      Promise.resolve().then(() => {
+        setApplications([]);
+      });
+    }
+  }, [user]);
+ 
+  // Fetch saved opportunities on mount/user change
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      fetchSaved();
+    });
+    window.addEventListener("bookmark-updated", fetchSaved);
+    return () => {
+      window.removeEventListener("bookmark-updated", fetchSaved);
+    };
+  }, [user, fetchSaved]);
+
+  // Fetch applications on mount/user change
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      fetchApplications();
+    });
+    window.addEventListener("tracker-updated", fetchApplications);
+    window.addEventListener("bookmark-updated", fetchApplications);
+    return () => {
+      window.removeEventListener("tracker-updated", fetchApplications);
+      window.removeEventListener("bookmark-updated", fetchApplications);
+    };
+  }, [user, fetchApplications]);
 
   const handleToggleSave = async (oppId: string) => {
     if (!user) {
@@ -89,6 +137,32 @@ export function OpportunitiesExplorer({ opportunities = [] }: OpportunitiesExplo
       setSavedIds((prev) =>
         isSaved ? [...prev, oppId] : prev.filter((id) => id !== oppId)
       );
+    }
+  };
+
+  const handleStatusChange = async (oppId: string, status: ApplicationStatus | "none") => {
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+
+    // Optimistic Update
+    setApplications((prev) => {
+      const filteredList = prev.filter((app) => app.opportunityId !== oppId);
+      if (status === "none") return filteredList;
+      return [...filteredList, { opportunityId: oppId, status }];
+    });
+
+    try {
+      if (status === "none") {
+        await removeApplication(user.uid, oppId);
+      } else {
+        await setApplicationStatus(user.uid, oppId, status);
+      }
+      window.dispatchEvent(new Event("tracker-updated"));
+    } catch (err) {
+      console.error("Failed to update status:", err);
+      fetchApplications();
     }
   };
 
@@ -184,6 +258,9 @@ export function OpportunitiesExplorer({ opportunities = [] }: OpportunitiesExplo
         <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((opportunity) => {
             const { score, reasons } = calculateMatchScore(profile, opportunity);
+            const app = applications.find((a) => a.opportunityId === opportunity.id);
+            const trackerStatus = app ? app.status : "none";
+
             return (
               <OpportunityCard
                 key={opportunity.id}
@@ -192,6 +269,8 @@ export function OpportunitiesExplorer({ opportunities = [] }: OpportunitiesExplo
                 onToggleSave={() => handleToggleSave(opportunity.id)}
                 matchScore={user ? score : undefined}
                 matchReasons={user ? reasons : undefined}
+                trackerStatus={trackerStatus}
+                onChangeTrackerStatus={user ? (newStatus) => handleStatusChange(opportunity.id, newStatus) : undefined}
               />
             );
           })}

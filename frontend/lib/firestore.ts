@@ -111,3 +111,56 @@ export async function createOpportunity(
   });
   return docRef.id;
 }
+
+export type ApplicationStatus = "applied" | "interview" | "offer" | "rejected";
+
+export interface Application {
+  opportunityId: string;
+  status: ApplicationStatus;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
+/**
+ * Fetch all applications for a user.
+ */
+export async function getApplications(uid: string): Promise<Application[]> {
+  const colRef = collection(getFirebaseDb(), "users", uid, "applications");
+  const snap = await getDocs(colRef);
+  return snap.docs.map((d) => {
+    const data = d.data();
+    return {
+      opportunityId: d.id,
+      status: data.status,
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt,
+    };
+  });
+}
+
+/**
+ * Set/update application status.
+ */
+export async function setApplicationStatus(
+  uid: string,
+  opportunityId: string,
+  status: ApplicationStatus
+): Promise<void> {
+  const ref = doc(getFirebaseDb(), "users", uid, "applications", opportunityId);
+  const snap = await getDoc(ref);
+  const now = serverTimestamp();
+
+  if (snap.exists()) {
+    await setDoc(ref, { status, updatedAt: now }, { merge: true });
+  } else {
+    await setDoc(ref, { opportunityId, status, createdAt: now, updatedAt: now });
+  }
+}
+
+/**
+ * Remove an application from tracker.
+ */
+export async function removeApplication(uid: string, opportunityId: string): Promise<void> {
+  const ref = doc(getFirebaseDb(), "users", uid, "applications", opportunityId);
+  await deleteDoc(ref);
+}

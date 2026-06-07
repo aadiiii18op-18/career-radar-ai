@@ -8,6 +8,8 @@ interface OpportunityCardProps {
   onToggleSave?: () => void;
   matchScore?: number;
   matchReasons?: string[];
+  trackerStatus?: "applied" | "interview" | "offer" | "rejected" | "none";
+  onChangeTrackerStatus?: (status: "applied" | "interview" | "offer" | "rejected" | "none") => void;
 }
 
 export function OpportunityCard({
@@ -16,6 +18,8 @@ export function OpportunityCard({
   onToggleSave,
   matchScore,
   matchReasons,
+  trackerStatus,
+  onChangeTrackerStatus,
 }: OpportunityCardProps) {
   const styles = categoryStyles[opportunity.category];
   const daysLeft = daysUntilDeadline(opportunity.deadline);
@@ -38,6 +42,19 @@ export function OpportunityCard({
           {matchScore !== undefined && (
             <span className="inline-flex shrink-0 items-center rounded-full bg-indigo-500/10 px-2.5 py-1 text-xs font-semibold text-indigo-400 ring-1 ring-inset ring-indigo-500/20">
               ⚡ {matchScore}% Match
+            </span>
+          )}
+          {trackerStatus && trackerStatus !== "none" && (
+            <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${
+              trackerStatus === "applied"
+                ? "bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20"
+                : trackerStatus === "interview"
+                  ? "bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20"
+                  : trackerStatus === "offer"
+                    ? "bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20"
+                    : "bg-rose-500/10 text-rose-400 ring-1 ring-rose-500/20"
+            }`}>
+              {trackerStatus.charAt(0).toUpperCase() + trackerStatus.slice(1)}
             </span>
           )}
         </div>
@@ -101,6 +118,26 @@ export function OpportunityCard({
               • {reason}
             </span>
           ))}
+        </div>
+      )}
+
+      {onChangeTrackerStatus && (
+        <div className="mt-4 flex items-center justify-between gap-2 border-t border-white/5 pt-4">
+          <label htmlFor={`tracker-status-${opportunity.id}`} className="text-xs text-zinc-400 font-medium">
+            Application Status:
+          </label>
+          <select
+            id={`tracker-status-${opportunity.id}`}
+            value={trackerStatus || "none"}
+            onChange={(e) => onChangeTrackerStatus(e.target.value as "applied" | "interview" | "offer" | "rejected" | "none")}
+            className="rounded-lg border border-white/10 bg-zinc-900 px-2.5 py-1 text-xs text-zinc-300 outline-none transition-colors focus:border-indigo-500 cursor-pointer"
+          >
+            <option value="none">Not Applied</option>
+            <option value="applied">Applied</option>
+            <option value="interview">Interview</option>
+            <option value="offer">Offer</option>
+            <option value="rejected">Rejected</option>
+          </select>
         </div>
       )}
 
