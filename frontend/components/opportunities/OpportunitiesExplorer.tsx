@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthProvider";
 import { useRouter } from "next/navigation";
-import { getProfile, getSavedOpportunities, saveOpportunity, unsaveOpportunity } from "@/lib/firestore";
+import { getOpportunities, getProfile, getSavedOpportunities, saveOpportunity, unsaveOpportunity } from "@/lib/firestore";
 import { calculateMatchScore } from "@/lib/match-score";
 import {
   ALL_CATEGORIES,
@@ -18,13 +18,25 @@ interface OpportunitiesExplorerProps {
   opportunities: Opportunity[];
 }
 
-export function OpportunitiesExplorer({ opportunities }: OpportunitiesExplorerProps) {
+export function OpportunitiesExplorer({ opportunities = [] }: OpportunitiesExplorerProps) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<CategoryFilter>(ALL_CATEGORIES);
   const { user } = useAuth();
   const router = useRouter();
   const [savedIds, setSavedIds] = useState<string[]>([]);
   const [profile, setProfile] = useState<Omit<UserProfile, "updatedAt"> | null>(null);
+  const [opportunitiesList, setOpportunitiesList] = useState<Opportunity[]>(opportunities);
+  const [loadingOpps, setLoadingOpps] = useState(true);
+
+  // Fetch opportunities from Firestore on mount
+  useEffect(() => {
+    getOpportunities()
+      .then(setOpportunitiesList)
+      .catch((err) => console.error("Error loading opportunities:", err))
+      .finally(() => {
+        setLoadingOpps(false);
+      });
+  }, []);
 
   // Fetch profile on mount/user change
   useEffect(() => {
@@ -83,7 +95,7 @@ export function OpportunitiesExplorer({ opportunities }: OpportunitiesExplorerPr
   const filtered = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
-    return opportunities.filter((opp) => {
+    return opportunitiesList.filter((opp) => {
       const matchesCategory =
         category === ALL_CATEGORIES || opp.category === category;
 
@@ -100,7 +112,16 @@ export function OpportunitiesExplorer({ opportunities }: OpportunitiesExplorerPr
 
       return matchesCategory && haystack.includes(normalizedQuery);
     });
-  }, [opportunities, query, category]);
+  }, [opportunitiesList, query, category]);
+
+  if (loadingOpps) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+        <p className="text-sm text-zinc-500">Loading opportunities…</p>
+      </div>
+    );
+  }
 
   return (
     <div>

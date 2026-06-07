@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Header } from "@/components/landing/Header";
 import { Footer } from "@/components/landing/Footer";
 import { OpportunitiesExplorer } from "@/components/opportunities/OpportunitiesExplorer";
-import { mockOpportunities } from "@/lib/mock-opportunities";
 
 export const metadata: Metadata = {
   title: "Opportunities — Career Radar AI",
@@ -33,7 +32,7 @@ export default function OpportunitiesPage() {
           </div>
 
           <div className="relative mt-12">
-            <OpportunitiesExplorer opportunities={mockOpportunities} />
+            <OpportunitiesExplorer opportunities={[]} />
           </div>
         </div>
       </main>

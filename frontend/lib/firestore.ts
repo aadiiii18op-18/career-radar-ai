@@ -5,8 +5,12 @@ import {
   collection,
   getDocs,
   deleteDoc,
+  addDoc,
+  query,
+  orderBy,
   serverTimestamp,
 } from "firebase/firestore";
+import type { Opportunity } from "@/types/opportunity";
 import { getFirebaseDb } from "@/lib/firebase/config";
 import type { UserProfile } from "@/types/profile";
 
@@ -71,4 +75,39 @@ export async function getSavedOpportunities(uid: string): Promise<string[]> {
   const colRef = collection(getFirebaseDb(), "users", uid, "saved_opportunities");
   const snap = await getDocs(colRef);
   return snap.docs.map((d) => d.id);
+}
+
+/**
+ * Fetch all opportunities from the Firestore collection.
+ */
+export async function getOpportunities(): Promise<Opportunity[]> {
+  const colRef = collection(getFirebaseDb(), "opportunities");
+  const q = query(colRef, orderBy("createdAt", "desc"));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => {
+    const data = d.data();
+    return {
+      id: d.id,
+      title: data.title ?? "",
+      category: data.category ?? "Internship",
+      organizer: data.organizer ?? "",
+      deadline: data.deadline ?? "",
+      description: data.description ?? "",
+      applyUrl: data.applyUrl ?? "",
+    };
+  });
+}
+
+/**
+ * Create a new opportunity in Firestore.
+ */
+export async function createOpportunity(
+  opportunity: Omit<Opportunity, "id">
+): Promise<string> {
+  const colRef = collection(getFirebaseDb(), "opportunities");
+  const docRef = await addDoc(colRef, {
+    ...opportunity,
+    createdAt: serverTimestamp(),
+  });
+  return docRef.id;
 }

@@ -3,10 +3,9 @@
 import { useAuth } from "@/contexts/AuthProvider";
 import Link from "next/link";
 import { useState, useEffect, useCallback } from "react";
-import { getProfile, getSavedOpportunities, saveOpportunity, unsaveOpportunity } from "@/lib/firestore";
+import { getProfile, getSavedOpportunities, saveOpportunity, unsaveOpportunity, getOpportunities } from "@/lib/firestore";
 import { calculateMatchScore } from "@/lib/match-score";
 import { OpportunityCard } from "@/components/opportunities/OpportunityCard";
-import { mockOpportunities } from "@/lib/mock-opportunities";
 import type { Opportunity } from "@/types/opportunity";
 
 export function DashboardContent() {
@@ -83,9 +82,12 @@ export function SavedOpportunitiesSection() {
       Promise.resolve().then(() => {
         setLoading(true);
       });
-      getSavedOpportunities(user.uid)
-        .then((savedIds) => {
-          const saved = mockOpportunities.filter((opp) => savedIds.includes(opp.id));
+      Promise.all([
+        getSavedOpportunities(user.uid),
+        getOpportunities(),
+      ])
+        .then(([savedIds, allOpps]) => {
+          const saved = allOpps.filter((opp) => savedIds.includes(opp.id));
           setSavedOpportunities(saved);
         })
         .catch((err) => console.error("Error loading saved opportunities:", err))
@@ -185,13 +187,16 @@ export function AIRecommendationsCount() {
 
   useEffect(() => {
     if (user?.uid) {
-      getProfile(user.uid)
-        .then((profile) => {
+      Promise.all([
+        getProfile(user.uid),
+        getOpportunities(),
+      ])
+        .then(([profile, allOpps]) => {
           if (!profile) {
             setCount(0);
             return;
           }
-          const matches = mockOpportunities.filter((opp) => {
+          const matches = allOpps.filter((opp) => {
             const { score } = calculateMatchScore(profile, opp);
             return score >= 80;
           });
@@ -242,17 +247,18 @@ export function AIRecommendationsSection() {
         setLoading(true);
       });
 
-      getSavedOpportunities(user.uid)
-        .then(setSavedIds)
-        .catch((err) => console.error("Error loading bookmarks:", err));
-
-      getProfile(user.uid)
-        .then((profile) => {
+      Promise.all([
+        getSavedOpportunities(user.uid),
+        getProfile(user.uid),
+        getOpportunities(),
+      ])
+        .then(([savedIds, profile, allOpps]) => {
+          setSavedIds(savedIds);
           if (!profile) {
             setRecommended([]);
             return;
           }
-          const items = mockOpportunities.map((opp) => {
+          const items = allOpps.map((opp) => {
             const { score, reasons } = calculateMatchScore(profile, opp);
             return { opportunity: opp, score, reasons };
           });
