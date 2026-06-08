@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthProvider";
-import { createOpportunity } from "@/lib/firestore";
+import { createOpportunity, isDuplicateHash, upsertOpportunity } from "@/lib/firestore";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { Header } from "@/components/landing/Header";
 import { Footer } from "@/components/landing/Footer";
 import Link from "next/link";
-import type { OpportunityCategory } from "@/types/opportunity";
+import type { Opportunity, OpportunityCategory } from "@/types/opportunity";
 import { mockOpportunities } from "@/lib/mock-opportunities";
 
 const ADMIN_EMAILS = [
@@ -33,10 +33,157 @@ export default function AdminPage() {
   
   const [submitting, setSubmitting] = useState(false);
   const [seeding, setSeeding] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResults, setSyncResults] = useState<{
+    inserted: number;
+    updated: number;
+    skipped: number;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   const isAdmin = user?.email ? ADMIN_EMAILS.includes(user.email.toLowerCase()) : false;
+
+  const generateFingerprintHash = async (title: string, organizer: string): Promise<string> => {
+    const normalizedTitle = title.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const normalizedOrganizer = organizer.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const msg = `${normalizedTitle}_${normalizedOrganizer}`;
+
+    const msgBuffer = new TextEncoder().encode(msg);
+    const cryptoObj = typeof window !== "undefined" ? window.crypto : (globalThis as unknown as { crypto?: Crypto }).crypto;
+    
+    if (!cryptoObj || !cryptoObj.subtle) {
+      let hash = 0;
+      for (let i = 0; i < msg.length; i++) {
+        const char = msg.charCodeAt(i);
+        hash = (hash << 5) - hash + char;
+        hash = hash & hash;
+      }
+      return Math.abs(hash).toString(16);
+    }
+
+    const hashBuffer = await cryptoObj.subtle.digest("SHA-256", msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+  };
+
+  const sanitizeDescription = (markdownDesc: string): string => {
+    if (!markdownDesc) return "";
+    return markdownDesc
+      .replace(/[#*`_\-]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  };
+
+  interface DevfolioHackathon {
+    uuid?: string;
+    id?: string;
+    name?: string;
+    desc?: string;
+    tagline?: string;
+    slug?: string;
+    starts_at?: string;
+    ends_at?: string;
+    themes?: Array<{ name?: string }>;
+    hackathon_setting?: {
+      subdomain?: string;
+      contact_email?: string;
+      site_url?: string;
+      reg_ends_at?: string;
+    };
+  }
+
+  const normalizeDevfolioOpportunity = async (rawItem: DevfolioHackathon): Promise<Opportunity> => {
+    const externalId = rawItem.uuid || rawItem.id || "";
+    const title = rawItem.name || "N/A";
+    
+    const subdomain = rawItem.hackathon_setting?.subdomain || rawItem.slug || "";
+    const organizer = rawItem.hackathon_setting?.contact_email
+      ? rawItem.hackathon_setting.contact_email.split("@")[0].toUpperCase()
+      : subdomain
+        ? subdomain.charAt(0).toUpperCase() + subdomain.slice(1)
+        : "Devfolio Event";
+
+    const slug = rawItem.slug;
+    const url = slug ? `https://${slug}.devfolio.co/` : rawItem.hackathon_setting?.site_url || "https://devfolio.co/hackathons";
+    
+    const deadlineRaw = rawItem.hackathon_setting?.reg_ends_at || rawItem.ends_at || rawItem.starts_at || "";
+    const deadline = deadlineRaw ? deadlineRaw.split("T")[0] : new Date().toISOString().split("T")[0];
+
+    const description = sanitizeDescription(rawItem.desc || rawItem.tagline || "");
+    const themes = Array.isArray(rawItem.themes)
+      ? (rawItem.themes.map((t: { name?: string }) => t.name).filter(Boolean) as string[])
+      : [];
+
+    const hash = await generateFingerprintHash(title, organizer);
+    const deadlineDate = new Date(deadline);
+    const now = new Date();
+    const isActive = deadlineDate >= now;
+
+    return {
+      id: `devfolio_${externalId}`,
+      source: "devfolio",
+      externalId,
+      title,
+      organizer,
+      category: "Hackathon",
+      description,
+      deadline,
+      applyUrl: url,
+      url,
+      isActive,
+      tags: themes,
+      hash,
+    };
+  };
+
+  const handleSyncDevfolio = async () => {
+    if (!isAdmin) return;
+    setSyncing(true);
+    setError(null);
+    setSuccess(false);
+    setSyncResults(null);
+
+    try {
+      const response = await fetch("/api/proxy-devfolio");
+      if (!response.ok) {
+        throw new Error(`Devfolio API Proxy returned status ${response.status}`);
+      }
+      const data = await response.json();
+      const rawItems = (data.result || []) as DevfolioHackathon[];
+
+      let inserted = 0;
+      let updated = 0;
+      let skipped = 0;
+
+      for (const rawItem of rawItems) {
+        const normalized = await normalizeDevfolioOpportunity(rawItem);
+        const isDup = normalized.hash ? await isDuplicateHash(normalized.hash) : false;
+
+        if (isDup) {
+          skipped++;
+          continue;
+        }
+
+        const res = await upsertOpportunity(normalized);
+        if (res === "inserted") {
+          inserted++;
+        } else {
+          updated++;
+        }
+      }
+
+      setSyncResults({ inserted, updated, skipped });
+      setSuccess(true);
+      window.dispatchEvent(new Event("bookmark-updated"));
+    } catch (err) {
+      console.error("Sync failed:", err);
+      const message = err instanceof Error ? err.message : "Failed to sync Devfolio opportunities.";
+      setError(message);
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const handleSeed = async () => {
     if (!isAdmin) return;
@@ -182,6 +329,44 @@ export default function AdminPage() {
               </div>
             ) : (
               <div className="relative rounded-2xl border border-white/5 bg-white/[0.02] p-8 shadow-xl backdrop-blur-md">
+                {/* Sync Devfolio Option */}
+                <div className="mb-6 flex flex-col justify-between gap-4 rounded-xl border border-indigo-500/10 bg-indigo-500/[0.02] p-4 sm:flex-row sm:items-center">
+                  <div>
+                    <h3 className="font-semibold text-white">Sync Devfolio Hackathons</h3>
+                    <p className="text-xs text-zinc-400">
+                      Fetch and ingest live, upcoming opportunities from the Devfolio API.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSyncDevfolio}
+                    disabled={syncing || seeding || submitting}
+                    className="shrink-0 rounded-full bg-gradient-to-r from-indigo-500 to-cyan-500 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-indigo-500/20 transition-all hover:shadow-indigo-500/40 disabled:opacity-50 cursor-pointer"
+                  >
+                    {syncing ? "Syncing..." : "Sync Devfolio"}
+                  </button>
+                </div>
+
+                {syncResults && (
+                  <div className="mb-6 rounded-xl border border-emerald-500/10 bg-emerald-500/[0.02] p-4 text-xs text-emerald-400">
+                    <p className="font-semibold text-white mb-2">Sync completed successfully!</p>
+                    <ul className="grid grid-cols-3 gap-2 text-center text-xs">
+                      <li className="rounded bg-white/5 p-2 border border-white/5">
+                        <span className="block text-white font-bold text-lg">{syncResults.inserted}</span>
+                        New
+                      </li>
+                      <li className="rounded bg-white/5 p-2 border border-white/5">
+                        <span className="block text-white font-bold text-lg">{syncResults.updated}</span>
+                        Updated
+                      </li>
+                      <li className="rounded bg-white/5 p-2 border border-white/5">
+                        <span className="block text-white font-bold text-lg">{syncResults.skipped}</span>
+                        Skipped
+                      </li>
+                    </ul>
+                  </div>
+                )}
+
                 {/* Seed Database Option */}
                 <div className="mb-6 flex flex-col justify-between gap-4 rounded-xl border border-indigo-500/10 bg-indigo-500/[0.02] p-4 sm:flex-row sm:items-center">
                   <div>

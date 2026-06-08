@@ -13,4 +13,14 @@ export interface Opportunity {
   deadline: string;
   description: string;
   applyUrl: string;
+  url?: string;
+  
+  // Ingestion source metadata:
+  source?: string;
+  externalId?: string;
+  updatedAt?: unknown;
+  createdAt?: unknown;
+  isActive?: boolean;
+  tags?: string[];
+  hash?: string;
 }

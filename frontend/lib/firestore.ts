@@ -9,6 +9,7 @@ import {
   query,
   orderBy,
   serverTimestamp,
+  where,
 } from "firebase/firestore";
 import type { Opportunity } from "@/types/opportunity";
 import { getFirebaseDb } from "@/lib/firebase/config";
@@ -93,7 +94,14 @@ export async function getOpportunities(): Promise<Opportunity[]> {
       organizer: data.organizer ?? "",
       deadline: data.deadline ?? "",
       description: data.description ?? "",
-      applyUrl: data.applyUrl ?? "",
+      applyUrl: data.applyUrl ?? data.url ?? "",
+      url: data.url,
+      source: data.source,
+      externalId: data.externalId,
+      updatedAt: data.updatedAt,
+      isActive: data.isActive,
+      tags: data.tags,
+      hash: data.hash,
     };
   });
 }
@@ -163,4 +171,36 @@ export async function setApplicationStatus(
 export async function removeApplication(uid: string, opportunityId: string): Promise<void> {
   const ref = doc(getFirebaseDb(), "users", uid, "applications", opportunityId);
   await deleteDoc(ref);
+}
+
+/**
+ * Check if a fingerprint hash already exists in Firestore.
+ * Used for cross-source deduplication on the client.
+ */
+export async function isDuplicateHash(hash: string): Promise<boolean> {
+  const colRef = collection(getFirebaseDb(), "opportunities");
+  const q = query(colRef, where("hash", "==", hash));
+  const snap = await getDocs(q);
+  return !snap.empty;
+}
+
+/**
+ * Upserts a normalized opportunity into the opportunities collection.
+ * Uses source_externalId as document ID. Preserves createdAt.
+ */
+export async function upsertOpportunity(opportunity: Opportunity): Promise<"inserted" | "updated"> {
+  const ref = doc(getFirebaseDb(), "opportunities", opportunity.id);
+  const snap = await getDoc(ref);
+  const now = serverTimestamp();
+
+  if (snap.exists()) {
+    // Exclude createdAt and id from update
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { createdAt: _createdAt, id: _id, ...updateData } = opportunity;
+    await setDoc(ref, { ...updateData, updatedAt: now }, { merge: true });
+    return "updated";
+  } else {
+    await setDoc(ref, { ...opportunity, createdAt: now, updatedAt: now });
+    return "inserted";
+  }
 }

@@ -39,6 +39,11 @@ export function OpportunityCard({
           >
             {opportunity.category}
           </span>
+          {opportunity.source && (
+            <span className="inline-flex shrink-0 items-center rounded-full bg-white/5 border border-white/10 px-2 py-0.5 text-[10px] font-semibold text-zinc-300">
+              {opportunity.source.toUpperCase()}
+            </span>
+          )}
           {matchScore !== undefined && (
             <span className="inline-flex shrink-0 items-center rounded-full bg-indigo-500/10 px-2.5 py-1 text-xs font-semibold text-indigo-400 ring-1 ring-inset ring-indigo-500/20">
               ⚡ {matchScore}% Match

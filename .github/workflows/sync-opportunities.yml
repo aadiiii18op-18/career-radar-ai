@@ -1,0 +1,41 @@
+name: Sync Opportunities
+
+on:
+  schedule:
+    # Run every 12 hours (at 00:00 and 12:00 UTC)
+    - cron: '0 */12 * * *'
+  workflow_dispatch:
+    # Allow manual triggering from GitHub UI
+
+jobs:
+  sync:
+    name: Ingest Opportunities
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-rate-limit: false
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'crawler/package-lock.json'
+
+      - name: Install Dependencies
+        run: |
+          cd crawler
+          npm ci
+
+      - name: Run Crawler Ingestion
+        run: |
+          cd crawler
+          npm start
+        env:
+          # Injects Firebase Service Account secrets securely from Github Secrets
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          # Production run (writes to Firestore)
+          DRY_RUN: 'false'
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: 'career-radar-ai'
