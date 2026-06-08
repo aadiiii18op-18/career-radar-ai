@@ -59,7 +59,7 @@ export async function isDuplicateHash(hash: string): Promise<boolean> {
  * Uses source_externalId as the document ID to guarantee idempotency.
  * Preserves the original createdAt timestamp if the document already exists.
  */
-export async function upsertOpportunity(opportunity: Opportunity): Promise<void> {
+export async function upsertOpportunity(opportunity: Opportunity): Promise<"inserted" | "updated" | "skipped"> {
   const firestoreDb = initFirestore();
   const docRef = firestoreDb.collection("opportunities").doc(opportunity.id);
   const docSnap = await docRef.get();
@@ -67,7 +67,27 @@ export async function upsertOpportunity(opportunity: Opportunity): Promise<void>
   const now = admin.firestore.FieldValue.serverTimestamp();
   
   if (docSnap.exists) {
+    const existing = docSnap.data();
+    
+    // Check if any key fields changed: deadline, description, tags, title, organizer
+    const deadlineChanged = existing?.deadline !== opportunity.deadline;
+    const descriptionChanged = existing?.description !== opportunity.description;
+    const titleChanged = existing?.title !== opportunity.title;
+    const organizerChanged = existing?.organizer !== opportunity.organizer;
+    
+    // Compare tags array
+    const existingTags = Array.isArray(existing?.tags) ? existing.tags : [];
+    const newTags = Array.isArray(opportunity.tags) ? opportunity.tags : [];
+    const tagsChanged = existingTags.length !== newTags.length || 
+      !newTags.every((t: string) => existingTags.includes(t));
+      
+    if (!deadlineChanged && !descriptionChanged && !titleChanged && !organizerChanged && !tagsChanged) {
+      console.log(`[Firestore Service] Skipped (No changes): ${opportunity.id} (${opportunity.title})`);
+      return "skipped";
+    }
+
     // Update: only update mutable fields and set updatedAt (exclude createdAt & id)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { createdAt, id, ...updateData } = opportunity;
     await docRef.set(
       {
@@ -77,6 +97,7 @@ export async function upsertOpportunity(opportunity: Opportunity): Promise<void>
       { merge: true }
     );
     console.log(`[Firestore Service] Updated opportunity: ${opportunity.id} (${opportunity.title})`);
+    return "updated";
   } else {
     // Create: set both createdAt and updatedAt.
     await docRef.set({
@@ -85,5 +106,6 @@ export async function upsertOpportunity(opportunity: Opportunity): Promise<void>
       updatedAt: now,
     });
     console.log(`[Firestore Service] Created opportunity: ${opportunity.id} (${opportunity.title})`);
+    return "inserted";
   }
 }

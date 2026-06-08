@@ -1,0 +1,8 @@
+node_modules/
+dist/
+
+crawler/node_modules/
+crawler/dist/
+
+.env
+.env.local
