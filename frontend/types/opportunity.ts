@@ -21,6 +21,7 @@ export interface Opportunity {
   updatedAt?: unknown;
   createdAt?: unknown;
   isActive?: boolean;
+  views?: number;
   tags?: string[];
   hash?: string;
 }

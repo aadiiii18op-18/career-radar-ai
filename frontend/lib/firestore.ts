@@ -10,6 +10,8 @@ import {
   orderBy,
   serverTimestamp,
   where,
+  increment,
+  updateDoc,
 } from "firebase/firestore";
 import type { Opportunity } from "@/types/opportunity";
 import { getFirebaseDb } from "@/lib/firebase/config";
@@ -105,6 +107,7 @@ export async function getOpportunities(): Promise<Opportunity[]> {
       tags: data.tags,
       hash: data.hash,
       createdAt: data.createdAt,
+      views: data.views,
     };
   });
 }
@@ -360,4 +363,83 @@ export async function getDuplicateReport(): Promise<DuplicateReport> {
   });
   
   return report;
+}
+
+/**
+ * Fetch a single opportunity by ID.
+ */
+export async function getOpportunityById(id: string): Promise<Opportunity | null> {
+  const ref = doc(getFirebaseDb(), "opportunities", id);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return null;
+  const data = snap.data();
+  return {
+    id: snap.id,
+    title: data.title ?? "",
+    category: data.category ?? "Internship",
+    organizer: data.organizer ?? "",
+    deadline: data.deadline ?? "",
+    description: data.description ?? "",
+    applyUrl: data.applyUrl ?? data.url ?? "",
+    url: data.url,
+    source: data.source,
+    externalId: data.externalId,
+    updatedAt: data.updatedAt,
+    isActive: data.isActive,
+    tags: data.tags,
+    hash: data.hash,
+    createdAt: data.createdAt,
+    views: data.views,
+  };
+}
+
+/**
+ * Atomically increment views for an opportunity in Firestore.
+ */
+export async function incrementOpportunityViews(id: string): Promise<void> {
+  try {
+    const ref = doc(getFirebaseDb(), "opportunities", id);
+    await updateDoc(ref, { views: increment(1) });
+  } catch (err) {
+    console.error("Failed to increment views:", err);
+  }
+}
+
+/**
+ * Returns up to 5 opportunities ranked by similarity to the current opportunity.
+ * Prioritizes: same category (+10), overlapping tags (+3 per tag), same source (+2), same organizer (+5).
+ */
+export async function getSimilarOpportunities(opportunity: Opportunity): Promise<Opportunity[]> {
+  try {
+    const all = await getOpportunities();
+    const filtered = all.filter((o) => o.id !== opportunity.id);
+    const tagsA = opportunity.tags || [];
+    
+    const scored = filtered.map((o) => {
+      let score = 0;
+      if (o.category === opportunity.category) {
+        score += 10;
+      }
+      
+      const tagsB = o.tags || [];
+      const overlap = tagsA.filter((t) => tagsB.includes(t)).length;
+      score += overlap * 3;
+      
+      if (o.source && opportunity.source && o.source.toLowerCase() === opportunity.source.toLowerCase()) {
+        score += 2;
+      }
+      
+      if (o.organizer && opportunity.organizer && o.organizer.toLowerCase().trim() === opportunity.organizer.toLowerCase().trim()) {
+        score += 5;
+      }
+      
+      return { opp: o, score };
+    });
+    
+    scored.sort((a, b) => b.score - a.score);
+    return scored.slice(0, 5).map((x) => x.opp);
+  } catch (err) {
+    console.error("Failed to fetch similar opportunities:", err);
+    return [];
+  }
 }

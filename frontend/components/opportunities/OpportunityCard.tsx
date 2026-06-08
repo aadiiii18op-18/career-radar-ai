@@ -1,6 +1,7 @@
 import { categoryStyles } from "@/lib/categories";
 import { daysUntilDeadline, formatDeadline } from "@/lib/format-date";
 import type { Opportunity } from "@/types/opportunity";
+import Link from "next/link";
 
 interface OpportunityCardProps {
   opportunity: Opportunity;
@@ -112,7 +113,9 @@ export function OpportunityCard({
       </div>
 
       <h2 className="mt-4 text-lg font-semibold leading-snug text-white group-hover:text-indigo-100">
-        {opportunity.title}
+        <Link href={`/opportunities/${opportunity.id}`} className="hover:underline">
+          {opportunity.title}
+        </Link>
       </h2>
 
       <p className="mt-2 text-sm text-zinc-500">{opportunity.organizer}</p>
