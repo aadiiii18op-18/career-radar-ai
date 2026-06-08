@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Header } from "@/components/landing/Header";
 import { Footer } from "@/components/landing/Footer";
 import { OpportunitiesExplorer } from "@/components/opportunities/OpportunitiesExplorer";
@@ -32,7 +33,14 @@ export default function OpportunitiesPage() {
           </div>
 
           <div className="relative mt-12">
-            <OpportunitiesExplorer opportunities={[]} />
+            <Suspense fallback={
+              <div className="flex flex-col items-center justify-center py-20 gap-3">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+                <p className="text-sm text-zinc-500">Loading opportunities…</p>
+              </div>
+            }>
+              <OpportunitiesExplorer opportunities={[]} />
+            </Suspense>
           </div>
         </div>
       </main>

@@ -102,6 +102,7 @@ export async function getOpportunities(): Promise<Opportunity[]> {
       isActive: data.isActive,
       tags: data.tags,
       hash: data.hash,
+      createdAt: data.createdAt,
     };
   });
 }
