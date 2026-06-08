@@ -1,8 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthProvider";
-import { createOpportunity, isDuplicateHash, upsertOpportunity } from "@/lib/firestore";
+import { 
+  createOpportunity, 
+  isDuplicateHash, 
+  upsertOpportunity, 
+  getOpportunities,
+  getOpportunityStats,
+  getDataQualityMetrics,
+  getDuplicateReport,
+  archiveExpiredOpportunities,
+  type OpportunityStats,
+  type DataQualityMetrics,
+  type DuplicateReport
+} from "@/lib/firestore";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { Header } from "@/components/landing/Header";
 import { Footer } from "@/components/landing/Footer";
@@ -41,6 +53,150 @@ export default function AdminPage() {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  const [activeTab, setActiveTab] = useState<"upload" | "quality">("upload");
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [stats, setStats] = useState<OpportunityStats | null>(null);
+  const [quality, setQuality] = useState<DataQualityMetrics | null>(null);
+  const [dupReport, setDupReport] = useState<DuplicateReport | null>(null);
+  const [loadingMetrics, setLoadingMetrics] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+
+  const loadMetrics = async () => {
+    setLoadingMetrics(true);
+    try {
+      const opps = await getOpportunities();
+      setOpportunities(opps);
+      
+      const st = await getOpportunityStats();
+      setStats(st);
+      
+      const q = await getDataQualityMetrics();
+      setQuality(q);
+      
+      const d = await getDuplicateReport();
+      setDupReport(d);
+    } catch (err) {
+      console.error("Error loading quality metrics:", err);
+    } finally {
+      setLoadingMetrics(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "quality") {
+      Promise.resolve().then(() => {
+        loadMetrics();
+      });
+    }
+  }, [activeTab]);
+
+  const handleArchiveExpired = async () => {
+    setArchiving(true);
+    setError(null);
+    setSuccess(false);
+    try {
+      const archivedCount = await archiveExpiredOpportunities();
+      alert(`Successfully soft-archived ${archivedCount} expired opportunities!`);
+      loadMetrics();
+    } catch (err) {
+      console.error("Error archiving expired opportunities:", err);
+      setError("Failed to archive expired opportunities.");
+    } finally {
+      setArchiving(false);
+    }
+  };
+
+  interface SourceQualityItem {
+    source: string;
+    total: number;
+    active: number;
+    expired: number;
+    avgDescLen: number;
+    missingPercentage: number;
+    latestSync: Date | null;
+  }
+
+  const computeSourceQuality = (): SourceQualityItem[] => {
+    const todayStr = new Date().toISOString().split("T")[0];
+    const sources = ["devfolio", "unstop", "manual"];
+    
+    return sources.map((srcName) => {
+      const filtered = opportunities.filter((opp) => {
+        const source = opp.source || "manual";
+        return source === srcName;
+      });
+      
+      if (filtered.length === 0) {
+        return {
+          source: srcName,
+          total: 0,
+          active: 0,
+          expired: 0,
+          avgDescLen: 0,
+          missingPercentage: 0,
+          latestSync: null,
+        };
+      }
+      
+      let active = 0;
+      let expired = 0;
+      let totalDescLen = 0;
+      let totalMissingFields = 0;
+      let maxSyncTime = 0;
+      
+      filtered.forEach((opp) => {
+        const isExpired = opp.deadline < todayStr || opp.isActive === false;
+        if (isExpired) {
+          expired++;
+        } else {
+          active++;
+        }
+        
+        totalDescLen += opp.description?.length || 0;
+        
+        const hasTitle = opp.title && opp.title.trim() !== "" && opp.title !== "N/A";
+        const hasDesc = opp.description && opp.description.trim() !== "";
+        const hasDeadline = opp.deadline && opp.deadline.trim() !== "";
+        const hasOrganizer = opp.organizer && opp.organizer.trim() !== "" && opp.organizer !== "Devfolio Event" && opp.organizer !== "Unstop Event";
+        const hasUrl = opp.applyUrl && opp.applyUrl.trim() !== "";
+        
+        let missing = 0;
+        if (!hasTitle) missing++;
+        if (!hasDesc) missing++;
+        if (!hasDeadline) missing++;
+        if (!hasOrganizer) missing++;
+        if (!hasUrl) missing++;
+        totalMissingFields += missing;
+        
+        const ts = opp.updatedAt;
+        if (ts) {
+          let t = 0;
+          const tsObj = ts as unknown as { toDate?: () => Date; seconds?: number };
+          if (typeof tsObj.toDate === "function") {
+            t = tsObj.toDate().getTime();
+          } else if (typeof tsObj.seconds === "number") {
+            t = tsObj.seconds * 1000;
+          } else {
+            t = new Date(ts as unknown as string | number).getTime();
+          }
+          if (t > maxSyncTime) maxSyncTime = t;
+        }
+      });
+      
+      const totalFields = filtered.length * 5;
+      
+      return {
+        source: srcName,
+        total: filtered.length,
+        active,
+        expired,
+        avgDescLen: Math.round(totalDescLen / filtered.length),
+        missingPercentage: Math.round((totalMissingFields / totalFields) * 100),
+        latestSync: maxSyncTime > 0 ? new Date(maxSyncTime) : null,
+      };
+    });
+  };
 
   const isAdmin = user?.email ? ADMIN_EMAILS.includes(user.email.toLowerCase()) : false;
 
@@ -329,194 +485,508 @@ export default function AdminPage() {
               </div>
             ) : (
               <div className="relative rounded-2xl border border-white/5 bg-white/[0.02] p-8 shadow-xl backdrop-blur-md">
-                {/* Sync Devfolio Option */}
-                <div className="mb-6 flex flex-col justify-between gap-4 rounded-xl border border-indigo-500/10 bg-indigo-500/[0.02] p-4 sm:flex-row sm:items-center">
-                  <div>
-                    <h3 className="font-semibold text-white">Sync Devfolio Hackathons</h3>
-                    <p className="text-xs text-zinc-400">
-                      Fetch and ingest live, upcoming opportunities from the Devfolio API.
-                    </p>
-                  </div>
+                {/* Tabs selector */}
+                <div className="mb-8 flex border-b border-white/10 pb-px">
                   <button
                     type="button"
-                    onClick={handleSyncDevfolio}
-                    disabled={syncing || seeding || submitting}
-                    className="shrink-0 rounded-full bg-gradient-to-r from-indigo-500 to-cyan-500 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-indigo-500/20 transition-all hover:shadow-indigo-500/40 disabled:opacity-50 cursor-pointer"
+                    onClick={() => setActiveTab("upload")}
+                    className={`pb-4 text-sm font-semibold border-b-2 px-4 transition-colors cursor-pointer ${
+                      activeTab === "upload"
+                        ? "border-indigo-500 text-indigo-400 font-bold"
+                        : "border-transparent text-zinc-400 hover:text-zinc-200"
+                    }`}
                   >
-                    {syncing ? "Syncing..." : "Sync Devfolio"}
+                    Ingestion & Upload
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("quality")}
+                    className={`pb-4 text-sm font-semibold border-b-2 px-4 transition-colors cursor-pointer ${
+                      activeTab === "quality"
+                        ? "border-indigo-500 text-indigo-400 font-bold"
+                        : "border-transparent text-zinc-400 hover:text-zinc-200"
+                    }`}
+                  >
+                    Data Quality Dashboard
                   </button>
                 </div>
 
-                {syncResults && (
-                  <div className="mb-6 rounded-xl border border-emerald-500/10 bg-emerald-500/[0.02] p-4 text-xs text-emerald-400">
-                    <p className="font-semibold text-white mb-2">Sync completed successfully!</p>
-                    <ul className="grid grid-cols-3 gap-2 text-center text-xs">
-                      <li className="rounded bg-white/5 p-2 border border-white/5">
-                        <span className="block text-white font-bold text-lg">{syncResults.inserted}</span>
-                        New
-                      </li>
-                      <li className="rounded bg-white/5 p-2 border border-white/5">
-                        <span className="block text-white font-bold text-lg">{syncResults.updated}</span>
-                        Updated
-                      </li>
-                      <li className="rounded bg-white/5 p-2 border border-white/5">
-                        <span className="block text-white font-bold text-lg">{syncResults.skipped}</span>
-                        Skipped
-                      </li>
-                    </ul>
+                {activeTab === "upload" && (
+                  <div>
+                    {/* Sync Devfolio Option */}
+                    <div className="mb-6 flex flex-col justify-between gap-4 rounded-xl border border-indigo-500/10 bg-indigo-500/[0.02] p-4 sm:flex-row sm:items-center">
+                      <div>
+                        <h3 className="font-semibold text-white">Sync Devfolio Hackathons</h3>
+                        <p className="text-xs text-zinc-400">
+                          Fetch and ingest live, upcoming opportunities from the Devfolio API.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleSyncDevfolio}
+                        disabled={syncing || seeding || submitting}
+                        className="shrink-0 rounded-full bg-gradient-to-r from-indigo-500 to-cyan-500 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-indigo-500/20 transition-all hover:shadow-indigo-500/40 disabled:opacity-50 cursor-pointer"
+                      >
+                        {syncing ? "Syncing..." : "Sync Devfolio"}
+                      </button>
+                    </div>
+
+                    {syncResults && (
+                      <div className="mb-6 rounded-xl border border-emerald-500/10 bg-emerald-500/[0.02] p-4 text-xs text-emerald-400">
+                        <p className="font-semibold text-white mb-2">Sync completed successfully!</p>
+                        <ul className="grid grid-cols-3 gap-2 text-center text-xs">
+                          <li className="rounded bg-white/5 p-2 border border-white/5">
+                            <span className="block text-white font-bold text-lg">{syncResults.inserted}</span>
+                            New
+                          </li>
+                          <li className="rounded bg-white/5 p-2 border border-white/5">
+                            <span className="block text-white font-bold text-lg">{syncResults.updated}</span>
+                            Updated
+                          </li>
+                          <li className="rounded bg-white/5 p-2 border border-white/5">
+                            <span className="block text-white font-bold text-lg">{syncResults.skipped}</span>
+                            Skipped
+                          </li>
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Seed Database Option */}
+                    <div className="mb-6 flex flex-col justify-between gap-4 rounded-xl border border-indigo-500/10 bg-indigo-500/[0.02] p-4 sm:flex-row sm:items-center">
+                      <div>
+                        <h3 className="font-semibold text-white">Need test data?</h3>
+                        <p className="text-xs text-zinc-400">
+                          Populate your Firestore collection with all 15 default mock opportunities instantly.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleSeed}
+                        disabled={seeding || submitting}
+                        className="shrink-0 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-4 py-2 text-xs font-semibold text-indigo-400 transition-colors hover:bg-indigo-500/20 disabled:opacity-50"
+                      >
+                        {seeding ? "Seeding..." : "Seed Database"}
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                      {error && (
+                        <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-4 text-sm text-rose-400">
+                          {error}
+                        </div>
+                      )}
+
+                      {success && (
+                        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm text-emerald-400">
+                          Opportunity successfully added to Firestore collection!
+                        </div>
+                      )}
+
+                      <div className="grid gap-6 sm:grid-cols-2">
+                        <div>
+                          <label htmlFor="title" className="block text-sm font-medium text-zinc-300">
+                            Opportunity Title
+                          </label>
+                          <input
+                            id="title"
+                            type="text"
+                            value={title}
+                            onChange={(e) => setTitle(e.target.value)}
+                            placeholder="e.g. Google Software Engineering Intern"
+                            className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-zinc-500 outline-none transition-colors focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label htmlFor="organizer" className="block text-sm font-medium text-zinc-300">
+                            Organizer / Company
+                          </label>
+                          <input
+                            id="organizer"
+                            type="text"
+                            value={organizer}
+                            onChange={(e) => setOrganizer(e.target.value)}
+                            placeholder="e.g. Google"
+                            className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-zinc-500 outline-none transition-colors focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20"
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid gap-6 sm:grid-cols-2">
+                        <div>
+                          <label htmlFor="category" className="block text-sm font-medium text-zinc-300">
+                            Category
+                          </label>
+                          <select
+                            id="category"
+                            value={category}
+                            onChange={(e) => setCategory(e.target.value as OpportunityCategory)}
+                            className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm text-white outline-none transition-colors focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20"
+                          >
+                            {CATEGORIES.map((cat) => (
+                              <option key={cat} value={cat}>
+                                {cat}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label htmlFor="deadline" className="block text-sm font-medium text-zinc-300">
+                            Application Deadline
+                          </label>
+                          <input
+                            id="deadline"
+                            type="date"
+                            value={deadline}
+                            onChange={(e) => setDeadline(e.target.value)}
+                            className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition-colors focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20"
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label htmlFor="applyUrl" className="block text-sm font-medium text-zinc-300">
+                          Application / Link URL
+                        </label>
+                        <input
+                          id="applyUrl"
+                          type="url"
+                          value={applyUrl}
+                          onChange={(e) => setApplyUrl(e.target.value)}
+                          placeholder="https://example.com/apply"
+                          className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-zinc-500 outline-none transition-colors focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="description" className="block text-sm font-medium text-zinc-300">
+                          Detailed Description
+                        </label>
+                        <textarea
+                          id="description"
+                          rows={5}
+                          value={description}
+                          onChange={(e) => setDescription(e.target.value)}
+                          placeholder="Explain requirements, role expectations, and target candidates..."
+                          className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-zinc-500 outline-none transition-colors focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 resize-y"
+                          required
+                        />
+                      </div>
+
+                      <div className="flex justify-end gap-4 pt-4">
+                        <Link
+                          href="/dashboard"
+                          className="rounded-full border border-white/10 bg-white/5 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+                        >
+                          Cancel
+                        </Link>
+                        <button
+                          type="submit"
+                          disabled={submitting}
+                          className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 to-cyan-500 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-500/20 transition-all hover:shadow-indigo-500/40 disabled:opacity-50"
+                        >
+                          {submitting ? (
+                            <>
+                              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                              Uploading…
+                            </>
+                          ) : (
+                            "Upload Opportunity"
+                          )}
+                        </button>
+                      </div>
+                    </form>
                   </div>
                 )}
 
-                {/* Seed Database Option */}
-                <div className="mb-6 flex flex-col justify-between gap-4 rounded-xl border border-indigo-500/10 bg-indigo-500/[0.02] p-4 sm:flex-row sm:items-center">
-                  <div>
-                    <h3 className="font-semibold text-white">Need test data?</h3>
-                    <p className="text-xs text-zinc-400">
-                      Populate your Firestore collection with all 15 default mock opportunities instantly.
-                    </p>
+                {activeTab === "quality" && (
+                  <div className="space-y-8">
+                    {error && (
+                      <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-4 text-sm text-rose-400">
+                        {error}
+                      </div>
+                    )}
+                    {loadingMetrics ? (
+                      <div className="flex flex-col items-center justify-center py-12">
+                        <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" />
+                        <p className="mt-4 text-sm text-zinc-400 animate-pulse">Loading data quality metrics...</p>
+                      </div>
+                    ) : (
+                      <>
+                        {/* A. Overview Stats Grid */}
+                        <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5 shadow-sm">
+                            <span className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider">Total</span>
+                            <span className="mt-2 block text-3xl font-extrabold text-white">{stats?.total || 0}</span>
+                          </div>
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5 shadow-sm">
+                            <span className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider text-emerald-400/90">Active</span>
+                            <span className="mt-2 block text-3xl font-extrabold text-emerald-400">{stats?.active || 0}</span>
+                          </div>
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5 shadow-sm">
+                            <span className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider text-rose-400/90">Expired</span>
+                            <span className="mt-2 block text-3xl font-extrabold text-rose-400">{stats?.expired || 0}</span>
+                          </div>
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5 shadow-sm">
+                            <span className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider text-indigo-400/90">Completeness</span>
+                            <span className="mt-2 block text-3xl font-extrabold text-indigo-400">{quality?.completenessPercentage || 0}%</span>
+                          </div>
+                        </div>
+
+                        {/* E & Recent Sync. Source Quality & Sync Report */}
+                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-6 shadow-sm overflow-hidden">
+                          <h3 className="text-lg font-bold text-white mb-4">Source Quality & Sync Report</h3>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs border-collapse">
+                              <thead>
+                                <tr className="border-b border-white/10 text-zinc-500 uppercase tracking-wider font-semibold">
+                                  <th className="pb-3 text-left">Source</th>
+                                  <th className="pb-3 text-center">Total</th>
+                                  <th className="pb-3 text-center text-emerald-500/80">Active</th>
+                                  <th className="pb-3 text-center text-rose-500/80">Expired</th>
+                                  <th className="pb-3 text-center">Avg Desc Length</th>
+                                  <th className="pb-3 text-center">Missing Data %</th>
+                                  <th className="pb-3 text-right">Recent Sync Status</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-white/5 text-zinc-300 font-medium">
+                                {computeSourceQuality().map((row) => (
+                                  <tr key={row.source} className="hover:bg-white/[0.01] transition-colors">
+                                    <td className="py-3 text-left text-white capitalize">{row.source}</td>
+                                    <td className="py-3 text-center">{row.total}</td>
+                                    <td className="py-3 text-center text-emerald-400">{row.active}</td>
+                                    <td className="py-3 text-center text-rose-400">{row.expired}</td>
+                                    <td className="py-3 text-center">{row.avgDescLen} chars</td>
+                                    <td className={`py-3 text-center ${row.missingPercentage > 0 ? "text-amber-400 font-semibold" : "text-zinc-500"}`}>
+                                      {row.missingPercentage}%
+                                    </td>
+                                    <td className="py-3 text-right text-zinc-400 font-mono text-[11px]">
+                                      {row.latestSync 
+                                        ? row.latestSync.toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" }) 
+                                        : "Never / Manual"}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+
+                        {/* Category Breakdown */}
+                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-6 shadow-sm">
+                          <h3 className="text-lg font-bold text-white mb-4">Category Breakdown</h3>
+                          <div className="grid gap-4 grid-cols-2 sm:grid-cols-5">
+                            {["Internship", "Hackathon", "Scholarship", "Fellowship", "Competition"].map((cat) => {
+                              const count = stats?.byCategory[cat] || 0;
+                              return (
+                                <div key={cat} className="rounded-lg bg-zinc-950/40 border border-white/5 p-4 text-center">
+                                  <span className="block text-xs text-zinc-500 mb-1">{cat}</span>
+                                  <span className="text-xl font-extrabold text-white">{count}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* B. Data Health & Missing Fields Progress Checklist */}
+                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-6 shadow-sm">
+                          <h3 className="text-lg font-bold text-white mb-4">Data Health (Missing Fields Audit)</h3>
+                          <div className="space-y-4">
+                            <div>
+                              <div className="flex justify-between text-xs text-zinc-400 mb-1">
+                                <span>Missing Titles</span>
+                                <span className={quality?.missingTitle ? "text-rose-400 font-semibold" : "text-zinc-500"}>
+                                  {quality?.missingTitle || 0} records
+                                </span>
+                              </div>
+                              <div className="h-2 w-full rounded-full bg-white/5 overflow-hidden">
+                                <div 
+                                  className="h-full bg-indigo-500 transition-all duration-500" 
+                                  style={{ width: `${Math.max(0, 100 - ((quality?.missingTitle || 0) / (stats?.total || 1)) * 100)}%` }} 
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <div className="flex justify-between text-xs text-zinc-400 mb-1">
+                                <span>Missing Descriptions</span>
+                                <span className={quality?.missingDescription ? "text-rose-400 font-semibold" : "text-zinc-500"}>
+                                  {quality?.missingDescription || 0} records
+                                </span>
+                              </div>
+                              <div className="h-2 w-full rounded-full bg-white/5 overflow-hidden">
+                                <div 
+                                  className="h-full bg-indigo-500 transition-all duration-500" 
+                                  style={{ width: `${Math.max(0, 100 - ((quality?.missingDescription || 0) / (stats?.total || 1)) * 100)}%` }} 
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <div className="flex justify-between text-xs text-zinc-400 mb-1">
+                                <span>Missing Deadlines</span>
+                                <span className={quality?.missingDeadline ? "text-rose-400 font-semibold" : "text-zinc-500"}>
+                                  {quality?.missingDeadline || 0} records
+                                </span>
+                              </div>
+                              <div className="h-2 w-full rounded-full bg-white/5 overflow-hidden">
+                                <div 
+                                  className="h-full bg-indigo-500 transition-all duration-500" 
+                                  style={{ width: `${Math.max(0, 100 - ((quality?.missingDeadline || 0) / (stats?.total || 1)) * 100)}%` }} 
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <div className="flex justify-between text-xs text-zinc-400 mb-1">
+                                <span>Missing Organizers</span>
+                                <span className={quality?.missingOrganizer ? "text-rose-400 font-semibold" : "text-zinc-500"}>
+                                  {quality?.missingOrganizer || 0} records
+                                </span>
+                              </div>
+                              <div className="h-2 w-full rounded-full bg-white/5 overflow-hidden">
+                                <div 
+                                  className="h-full bg-indigo-500 transition-all duration-500" 
+                                  style={{ width: `${Math.max(0, 100 - ((quality?.missingOrganizer || 0) / (stats?.total || 1)) * 100)}%` }} 
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <div className="flex justify-between text-xs text-zinc-400 mb-1">
+                                <span>Missing Application URLs</span>
+                                <span className={quality?.missingUrl ? "text-rose-400 font-semibold" : "text-zinc-500"}>
+                                  {quality?.missingUrl || 0} records
+                                </span>
+                              </div>
+                              <div className="h-2 w-full rounded-full bg-white/5 overflow-hidden">
+                                <div 
+                                  className="h-full bg-indigo-500 transition-all duration-500" 
+                                  style={{ width: `${Math.max(0, 100 - ((quality?.missingUrl || 0) / (stats?.total || 1)) * 100)}%` }} 
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* C. Duplicate Detection Dashboard */}
+                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-6 shadow-sm">
+                          <div className="mb-4 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+                            <div>
+                              <h3 className="text-lg font-bold text-white">Duplicate Detection Report</h3>
+                              <p className="text-xs text-zinc-400">Audit listings sharing identical title + organizer fingerprints.</p>
+                            </div>
+                            <div className="flex gap-4 text-xs font-medium">
+                              <div className="rounded bg-white/5 border border-white/5 px-3 py-1.5 text-center">
+                                <span className="block text-zinc-500 text-[10px] uppercase">Unique Hashes</span>
+                                <span className="font-extrabold text-white text-sm">{dupReport?.totalUniqueHashes || 0}</span>
+                              </div>
+                              <div className="rounded bg-white/5 border border-white/5 px-3 py-1.5 text-center">
+                                <span className="block text-zinc-500 text-[10px] uppercase">Duplicate Hashes</span>
+                                <span className={`font-extrabold text-sm ${dupReport?.duplicateHashesCount ? "text-rose-400" : "text-white"}`}>
+                                  {dupReport?.duplicateHashesCount || 0}
+                                </span>
+                              </div>
+                              <div className="rounded bg-white/5 border border-white/5 px-3 py-1.5 text-center">
+                                <span className="block text-zinc-500 text-[10px] uppercase">Duplicate Records</span>
+                                <span className={`font-extrabold text-sm ${dupReport?.duplicateRecordsCount ? "text-rose-400" : "text-white"}`}>
+                                  {dupReport?.duplicateRecordsCount || 0}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {dupReport?.duplicateGroups && dupReport.duplicateGroups.length > 0 ? (
+                            <div className="space-y-4">
+                              {dupReport.duplicateGroups.map((group, idx) => (
+                                <div key={idx} className="rounded-lg border border-rose-500/20 bg-rose-500/[0.01] p-4">
+                                  <div className="mb-2 flex items-center justify-between text-xs text-rose-400 font-bold border-b border-rose-500/10 pb-2">
+                                    <span className="font-mono">Hash: {group.hash.slice(0, 16)}...</span>
+                                    <span>{group.opportunities.length} duplicate records found</span>
+                                  </div>
+                                  <ul className="divide-y divide-white/5 text-xs text-zinc-300">
+                                    {group.opportunities.map((opp) => (
+                                      <li key={opp.id} className="py-2.5 flex items-center justify-between">
+                                        <div>
+                                          <span className="font-bold text-white">{opp.title}</span>
+                                          <span className="ml-2 text-zinc-500 text-[11px]">by {opp.organizer}</span>
+                                        </div>
+                                        <div className="flex gap-4 text-[10px] font-mono">
+                                          <span className="uppercase bg-white/5 px-1.5 py-0.5 rounded text-zinc-400">ID: {opp.id}</span>
+                                          <span className="uppercase bg-white/5 px-1.5 py-0.5 rounded text-zinc-400">Source: {opp.source || "manual"}</span>
+                                        </div>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="rounded-lg border border-white/5 bg-zinc-950/20 py-8 text-center text-xs text-zinc-500">
+                              No duplicate opportunities detected.
+                            </div>
+                          )}
+                        </div>
+
+                        {/* D. Expired Opportunity Audit & Action Button */}
+                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-6 shadow-sm">
+                          <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+                            <div>
+                              <h3 className="text-lg font-bold text-white">Expired Opportunity Audit</h3>
+                              <p className="text-xs text-zinc-400">
+                                Active opportunities whose deadline has passed.
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleArchiveExpired}
+                              disabled={archiving || loadingMetrics}
+                              className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 to-cyan-500 px-5 py-2 text-xs font-semibold text-white shadow-md shadow-indigo-500/20 transition-all hover:shadow-indigo-500/40 disabled:opacity-50 cursor-pointer"
+                            >
+                              {archiving ? "Archiving..." : "Archive Expired Opportunities"}
+                            </button>
+                          </div>
+
+                          {opportunities.filter((o) => {
+                            const todayStr = new Date().toISOString().split("T")[0];
+                            return o.deadline < todayStr && o.isActive !== false;
+                          }).length > 0 ? (
+                            <div className="overflow-x-auto max-h-60 overflow-y-auto border border-white/5 rounded-lg">
+                              <table className="w-full text-left text-xs border-collapse">
+                                <thead>
+                                  <tr className="border-b border-white/10 bg-zinc-950/40 text-zinc-500 uppercase tracking-wider sticky top-0 font-semibold">
+                                    <th className="p-3 text-left">Title</th>
+                                    <th className="p-3 text-center">Source</th>
+                                    <th className="p-3 text-right">Deadline</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5 text-zinc-300 font-medium">
+                                  {opportunities
+                                    .filter((o) => {
+                                      const todayStr = new Date().toISOString().split("T")[0];
+                                      return o.deadline < todayStr && o.isActive !== false;
+                                    })
+                                    .map((opp) => (
+                                      <tr key={opp.id} className="hover:bg-white/[0.01] transition-colors">
+                                        <td className="p-3 text-left text-white">{opp.title}</td>
+                                        <td className="p-3 text-center capitalize">{opp.source || "manual"}</td>
+                                        <td className="p-3 text-right text-rose-400 font-semibold font-mono">{opp.deadline}</td>
+                                      </tr>
+                                    ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          ) : (
+                            <div className="rounded-lg border border-white/5 bg-zinc-950/20 py-8 text-center text-xs text-zinc-500">
+                              All expired opportunities are fully soft-archived.
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleSeed}
-                    disabled={seeding || submitting}
-                    className="shrink-0 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-4 py-2 text-xs font-semibold text-indigo-400 transition-colors hover:bg-indigo-500/20 disabled:opacity-50"
-                  >
-                    {seeding ? "Seeding..." : "Seed Database"}
-                  </button>
-                </div>
-
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  {error && (
-                    <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-4 text-sm text-rose-400">
-                      {error}
-                    </div>
-                  )}
-
-                  {success && (
-                    <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm text-emerald-400">
-                      Opportunity successfully added to Firestore collection!
-                    </div>
-                  )}
-
-                  <div className="grid gap-6 sm:grid-cols-2">
-                    <div>
-                      <label htmlFor="title" className="block text-sm font-medium text-zinc-300">
-                        Opportunity Title
-                      </label>
-                      <input
-                        id="title"
-                        type="text"
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
-                        placeholder="e.g. Google Software Engineering Intern"
-                        className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-zinc-500 outline-none transition-colors focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label htmlFor="organizer" className="block text-sm font-medium text-zinc-300">
-                        Organizer / Company
-                      </label>
-                      <input
-                        id="organizer"
-                        type="text"
-                        value={organizer}
-                        onChange={(e) => setOrganizer(e.target.value)}
-                        placeholder="e.g. Google"
-                        className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-zinc-500 outline-none transition-colors focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid gap-6 sm:grid-cols-2">
-                    <div>
-                      <label htmlFor="category" className="block text-sm font-medium text-zinc-300">
-                        Category
-                      </label>
-                      <select
-                        id="category"
-                        value={category}
-                        onChange={(e) => setCategory(e.target.value as OpportunityCategory)}
-                        className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm text-white outline-none transition-colors focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20"
-                      >
-                        {CATEGORIES.map((cat) => (
-                          <option key={cat} value={cat}>
-                            {cat}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label htmlFor="deadline" className="block text-sm font-medium text-zinc-300">
-                        Application Deadline
-                      </label>
-                      <input
-                        id="deadline"
-                        type="date"
-                        value={deadline}
-                        onChange={(e) => setDeadline(e.target.value)}
-                        className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition-colors focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label htmlFor="applyUrl" className="block text-sm font-medium text-zinc-300">
-                      Application / Link URL
-                    </label>
-                    <input
-                      id="applyUrl"
-                      type="url"
-                      value={applyUrl}
-                      onChange={(e) => setApplyUrl(e.target.value)}
-                      placeholder="https://example.com/apply"
-                      className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-zinc-500 outline-none transition-colors focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="description" className="block text-sm font-medium text-zinc-300">
-                      Detailed Description
-                    </label>
-                    <textarea
-                      id="description"
-                      rows={5}
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      placeholder="Explain requirements, role expectations, and target candidates..."
-                      className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-zinc-500 outline-none transition-colors focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 resize-y"
-                      required
-                    />
-                  </div>
-
-                  <div className="flex justify-end gap-4 pt-4">
-                    <Link
-                      href="/dashboard"
-                      className="rounded-full border border-white/10 bg-white/5 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
-                    >
-                      Cancel
-                    </Link>
-                    <button
-                      type="submit"
-                      disabled={submitting}
-                      className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 to-cyan-500 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-500/20 transition-all hover:shadow-indigo-500/40 disabled:opacity-50"
-                    >
-                      {submitting ? (
-                        <>
-                          <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                          Uploading…
-                        </>
-                      ) : (
-                        "Upload Opportunity"
-                      )}
-                    </button>
-                  </div>
-                </form>
+                )}
               </div>
             )}
           </div>
