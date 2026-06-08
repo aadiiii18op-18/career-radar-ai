@@ -33,6 +33,8 @@ export async function getProfile(uid: string): Promise<UserProfile | null> {
     year:       data.year       ?? "",
     skills:     data.skills     ?? [],
     interests:  data.interests  ?? [],
+    careerGoal: data.careerGoal ?? "",
+    preferredDomains: data.preferredDomains ?? [],
     updatedAt:  data.updatedAt?.toDate?.() ?? undefined,
   };
 }

@@ -45,7 +45,15 @@ export function OpportunityCard({
             </span>
           )}
           {matchScore !== undefined && (
-            <span className="inline-flex shrink-0 items-center rounded-full bg-indigo-500/10 px-2.5 py-1 text-xs font-semibold text-indigo-400 ring-1 ring-inset ring-indigo-500/20">
+            <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${
+              matchScore >= 90
+                ? "bg-emerald-500/10 text-emerald-400 ring-emerald-500/20"
+                : matchScore >= 75
+                  ? "bg-indigo-500/10 text-indigo-400 ring-indigo-500/20"
+                  : matchScore >= 50
+                    ? "bg-amber-500/10 text-amber-400 ring-amber-500/20"
+                    : "bg-zinc-500/10 text-zinc-400 ring-zinc-500/20"
+            }`}>
               ⚡ {matchScore}% Match
             </span>
           )}
@@ -113,16 +121,31 @@ export function OpportunityCard({
         {opportunity.description}
       </p>
 
-      {matchReasons && matchReasons.length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-1.5">
-          {matchReasons.map((reason, idx) => (
-            <span
-              key={idx}
-              className="inline-flex items-center rounded bg-white/5 px-2 py-0.5 text-[10px] font-medium text-zinc-400 border border-white/5"
-            >
-              • {reason}
+      {/* AI Recommendation callout box */}
+      {matchScore !== undefined && matchReasons && matchReasons.length > 0 && (
+        <div className="mt-4 rounded-xl bg-white/[0.01] border border-white/5 p-3.5">
+          <div className="text-[10px] font-bold tracking-wider uppercase text-zinc-500 mb-2 flex items-center justify-between">
+            <span>⚡ AI RECOMMENDATION</span>
+            <span className={`text-[10px] font-bold ${
+              matchScore >= 90
+                ? "text-emerald-400"
+                : matchScore >= 75
+                  ? "text-indigo-400"
+                  : matchScore >= 50
+                    ? "text-amber-400"
+                    : "text-zinc-500"
+            }`}>
+              {matchScore >= 90 ? "Excellent Match" : matchScore >= 75 ? "Strong Match" : matchScore >= 50 ? "Moderate Match" : "Weak Match"}
             </span>
-          ))}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            {matchReasons.slice(0, 2).map((reason, idx) => (
+              <span key={idx} className="text-xs text-zinc-300 flex items-start gap-1.5 leading-normal">
+                <span className="text-indigo-400 font-semibold shrink-0">•</span>
+                <span>{reason}</span>
+              </span>
+            ))}
+          </div>
         </div>
       )}
 

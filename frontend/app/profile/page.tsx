@@ -11,6 +11,7 @@ import {
   YEAR_OPTIONS,
   SUGGESTED_SKILLS,
   SUGGESTED_INTERESTS,
+  SUGGESTED_DOMAINS,
 } from "@/types/profile";
 
 // ─── Tag chip ──────────────────────────────────────────────────────────────
@@ -171,6 +172,8 @@ export default function ProfilePage() {
     year:      "",
     skills:    [],
     interests: [],
+    careerGoal: "",
+    preferredDomains: [],
   });
 
   const setField = <K extends keyof typeof form>(
@@ -191,6 +194,8 @@ export default function ProfilePage() {
           year:      data.year,
           skills:    data.skills,
           interests: data.interests,
+          careerGoal: data.careerGoal || "",
+          preferredDomains: data.preferredDomains || [],
         });
       }
     } catch (e) {
@@ -345,6 +350,31 @@ export default function ProfilePage() {
                   onChange={(tags) => setField("interests", tags)}
                   placeholder="Type an interest and press Enter…"
                 />
+              </section>
+
+              <div className="border-t border-white/6" />
+
+              {/* ── Career Preferences ── */}
+              <section className="space-y-6">
+                <p className="text-xs font-bold text-gray-500 tracking-[0.18em] uppercase">
+                  Career Goals & Preferences
+                </p>
+                <div className="grid grid-cols-1 gap-6">
+                  <Field
+                    label="Career Goal"
+                    value={form.careerGoal || ""}
+                    onChange={(v) => setField("careerGoal", v)}
+                    placeholder="e.g. Software Engineer, Data Scientist, Product Manager"
+                  />
+                  
+                  <TagInput
+                    label="Preferred Domains"
+                    tags={form.preferredDomains || []}
+                    suggestions={SUGGESTED_DOMAINS}
+                    onChange={(tags) => setField("preferredDomains", tags)}
+                    placeholder="Type a preferred domain and press Enter…"
+                  />
+                </div>
               </section>
 
               <div className="border-t border-white/6" />

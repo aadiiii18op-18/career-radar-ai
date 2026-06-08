@@ -252,6 +252,17 @@ export function OpportunitiesExplorer({ opportunities = [] }: OpportunitiesExplo
     }
   };
 
+  // Suggest profile improvements if matching fields are missing
+  const missingFieldsList = useMemo(() => {
+    if (!profile) return [];
+    const list: string[] = [];
+    if (!profile.skills || profile.skills.length === 0) list.push("skills");
+    if (!profile.interests || profile.interests.length === 0) list.push("interests");
+    if (!profile.careerGoal || profile.careerGoal.trim() === "") list.push("career goals");
+    if (!profile.preferredDomains || profile.preferredDomains.length === 0) list.push("preferred domains");
+    return list;
+  }, [profile]);
+
   // Performance Optimization: Memoize match scores for all opportunities
   const opportunitiesWithScores = useMemo(() => {
     return opportunitiesList.map((opp) => {
@@ -682,6 +693,27 @@ export function OpportunitiesExplorer({ opportunities = [] }: OpportunitiesExplo
 
         {/* Opportunities grid container - flat list map style is virtualization-ready */}
         <div className="lg:col-span-3">
+          {/* Profile Improvement Banner */}
+          {user && missingFieldsList.length > 0 && (
+            <div className="mb-6 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 backdrop-blur-md">
+              <div className="flex items-start gap-3">
+                <span className="text-lg shrink-0">⚡</span>
+                <div>
+                  <p className="font-semibold text-white">Improve your profile to get better recommendations</p>
+                  <p className="text-zinc-400 text-xs mt-0.5 leading-relaxed">
+                    Your opportunity matches will be much more accurate if you add your: <span className="text-amber-300 font-medium">{missingFieldsList.join(", ")}</span>.
+                  </p>
+                </div>
+              </div>
+              <a 
+                href="/profile" 
+                className="shrink-0 rounded-full bg-amber-500/15 border border-amber-500/30 px-3.5 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/25 transition-all text-center"
+              >
+                Update Profile &rarr;
+              </a>
+            </div>
+          )}
+
           {sortedAndFilteredOpportunities.length > 0 ? (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {sortedAndFilteredOpportunities.map((opportunity) => {

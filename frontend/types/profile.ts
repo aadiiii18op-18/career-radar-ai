@@ -5,6 +5,8 @@ export interface UserProfile {
   year: string;
   skills: string[];
   interests: string[];
+  careerGoal?: string;
+  preferredDomains?: string[];
   updatedAt?: Date;
 }
 
@@ -28,4 +30,10 @@ export const SUGGESTED_INTERESTS = [
   "Open Source", "Competitive Programming", "Cybersecurity", "Cloud Computing",
   "DevOps", "Blockchain", "Game Development", "Robotics", "IoT",
   "Research", "Startups", "Design", "Product Management",
+];
+
+export const SUGGESTED_DOMAINS = [
+  "Frontend Development", "Backend Development", "Fullstack Development",
+  "AI / Machine Learning", "Data Science / Analytics", "Mobile App Development",
+  "Cloud & DevOps", "Cybersecurity", "UI/UX Design", "Product Management",
 ];
