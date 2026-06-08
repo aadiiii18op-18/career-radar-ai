@@ -12,6 +12,8 @@ import {
   setApplicationStatus,
   removeApplication,
   incrementOpportunityViews,
+  getOpportunityById,
+  getSimilarOpportunities,
   type ApplicationStatus,
   type Application
 } from "@/lib/firestore";
@@ -23,8 +25,7 @@ import { daysUntilDeadline, formatDeadline } from "@/lib/format-date";
 import { categoryStyles } from "@/lib/categories";
 
 interface OpportunityDetailClientProps {
-  opportunity: Opportunity;
-  similarOpportunities: Opportunity[];
+  id: string;
 }
 
 // Helper to safely format Firestore timestamp or Date strings
@@ -44,28 +45,61 @@ const formatDateTime = (val: any): string => {
   });
 };
 
-export function OpportunityDetailClient({
-  opportunity,
-  similarOpportunities,
-}: OpportunityDetailClientProps) {
+export function OpportunityDetailClient({ id }: OpportunityDetailClientProps) {
   const { user } = useAuth();
   const router = useRouter();
+
+  // Async data states
+  const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
+  const [similarOpportunities, setSimilarOpportunities] = useState<Opportunity[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // Interactivity states
   const [profile, setProfile] = useState<Omit<UserProfile, "updatedAt"> | null>(null);
   const [savedIds, setSavedIds] = useState<string[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
   const [copied, setCopied] = useState(false);
-  
-  // Future-ready view counter (shows current + 1 on mount)
-  const viewsCount = (opportunity.views || 0) + 1;
+  const [viewsCount, setViewsCount] = useState(0);
 
-  // Increment view count in Firestore on mount
+  // Fetch opportunity and similar ones client-side on mount
   useEffect(() => {
-    incrementOpportunityViews(opportunity.id);
-  }, [opportunity.id]);
+    if (!id) return;
+    Promise.resolve().then(() => {
+      setLoading(true);
+    });
+    getOpportunityById(id)
+      .then((opp) => {
+        if (opp) {
+          setOpportunity(opp);
+          
+          // Fetch similarity set
+          getSimilarOpportunities(opp)
+            .then(setSimilarOpportunities)
+            .catch(console.error);
 
-  // Load user data on mount / user change
+          // Atomic view counter with sessionStorage session guard (prevents Strict Mode double increments)
+          const sessionKey = `viewed_opportunity_${opp.id}`;
+          if (typeof window !== "undefined" && !sessionStorage.getItem(sessionKey)) {
+            sessionStorage.setItem(sessionKey, "true");
+            incrementOpportunityViews(opp.id).catch(console.error);
+            setViewsCount((opp.views || 0) + 1);
+          } else {
+            setViewsCount(opp.views || 0);
+          }
+        } else {
+          setOpportunity(null);
+        }
+      })
+      .catch((err) => {
+        console.error("Error loading opportunity:", err);
+        setOpportunity(null);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [id]);
+
+  // Load user profile, bookmarks, applications on mount/user change
   useEffect(() => {
     if (user?.uid) {
       getProfile(user.uid)
@@ -109,49 +143,49 @@ export function OpportunityDetailClient({
   }, [fetchSaved, fetchApplications]);
 
   // Bookmark / status action handlers
-  const handleToggleSave = async (id: string) => {
+  const handleToggleSave = async (oppId: string) => {
     if (!user) {
       router.push("/login");
       return;
     }
 
-    const isSaved = savedIds.includes(id);
+    const isSaved = savedIds.includes(oppId);
     setSavedIds((prev) =>
-      isSaved ? prev.filter((item) => item !== id) : [...prev, id]
+      isSaved ? prev.filter((item) => item !== oppId) : [...prev, oppId]
     );
 
     try {
       if (isSaved) {
-        await unsaveOpportunity(user.uid, id);
+        await unsaveOpportunity(user.uid, oppId);
       } else {
-        await saveOpportunity(user.uid, id);
+        await saveOpportunity(user.uid, oppId);
       }
       window.dispatchEvent(new Event("bookmark-updated"));
     } catch (err) {
       console.error("Failed to save/unsave bookmark:", err);
       setSavedIds((prev) =>
-        isSaved ? [...prev, id] : prev.filter((item) => item !== id)
+        isSaved ? [...prev, oppId] : prev.filter((item) => item !== oppId)
       );
     }
   };
 
-  const handleStatusChange = async (id: string, status: ApplicationStatus | "none") => {
+  const handleStatusChange = async (oppId: string, status: ApplicationStatus | "none") => {
     if (!user) {
       router.push("/login");
       return;
     }
 
     setApplications((prev) => {
-      const filtered = prev.filter((app) => app.opportunityId !== id);
+      const filtered = prev.filter((app) => app.opportunityId !== oppId);
       if (status === "none") return filtered;
-      return [...filtered, { opportunityId: id, status }];
+      return [...filtered, { opportunityId: oppId, status }];
     });
 
     try {
       if (status === "none") {
-        await removeApplication(user.uid, id);
+        await removeApplication(user.uid, oppId);
       } else {
-        await setApplicationStatus(user.uid, id, status);
+        await setApplicationStatus(user.uid, oppId, status);
       }
       window.dispatchEvent(new Event("tracker-updated"));
     } catch (err) {
@@ -171,6 +205,7 @@ export function OpportunityDetailClient({
 
   // Memoize dynamic match score calculations
   const matchResult = useMemo(() => {
+    if (!opportunity) return { score: 30, reasons: [] };
     return calculateMatchScore(profile, opportunity);
   }, [profile, opportunity]);
 
@@ -237,6 +272,40 @@ export function OpportunityDetailClient({
     );
   };
 
+  // Render Premium Spinner Skeleton during load
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-40 gap-3">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+        <p className="text-sm text-zinc-500">Loading opportunity details…</p>
+      </div>
+    );
+  }
+
+  // Render 404 screen if not found
+  if (!opportunity) {
+    return (
+      <div className="max-w-md mx-auto text-center space-y-6 py-20 px-4">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-400">
+          <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">Opportunity Not Found</h1>
+        <p className="text-zinc-500 text-sm leading-relaxed">
+          The opportunity with the requested ID does not exist or may have been removed from the database.
+        </p>
+        <button
+          type="button"
+          onClick={() => router.push("/opportunities")}
+          className="inline-flex rounded-full bg-indigo-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-indigo-500 shadow-lg shadow-indigo-500/20 cursor-pointer"
+        >
+          Back To Opportunities
+        </button>
+      </div>
+    );
+  }
+
   const styles = categoryStyles[opportunity.category] || { badge: "", dot: "" };
   const daysLeft = daysUntilDeadline(opportunity.deadline);
   const isExpired = opportunity.isActive === false || daysLeft < 0;
@@ -246,12 +315,6 @@ export function OpportunityDetailClient({
 
   return (
     <div className="relative mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-      {/* Ambient glows */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[20%] left-[-10%] w-[400px] h-[400px] rounded-full bg-violet-900/10 blur-[100px]" />
-        <div className="absolute bottom-[20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-indigo-900/15 blur-[120px]" />
-      </div>
-
       <div className="relative">
         {/* Navigation Breadcrumb */}
         <button
@@ -297,7 +360,7 @@ export function OpportunityDetailClient({
                 <p className="font-semibold text-zinc-200">{opportunity.organizer}</p>
                 <div className="h-4 w-[1px] bg-white/10 hidden sm:block" />
                 <p>Deadline: <span className="font-medium text-zinc-300">{formatDeadline(opportunity.deadline)}</span></p>
-                {opportunity.views !== undefined && (
+                {viewsCount !== undefined && (
                   <>
                     <div className="h-4 w-[1px] bg-white/10 hidden sm:block" />
                     <p className="flex items-center gap-1">
@@ -313,7 +376,7 @@ export function OpportunityDetailClient({
 
               {opportunity.tags && opportunity.tags.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 pt-2">
-                  {opportunity.tags.map((tag) => (
+                  {[...new Set(opportunity.tags)].map((tag) => (
                     <span key={tag} className="inline-flex items-center rounded bg-white/5 border border-white/5 px-2.5 py-1 text-xs text-zinc-400">
                       #{tag}
                     </span>
