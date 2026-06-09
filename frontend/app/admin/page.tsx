@@ -119,7 +119,7 @@ export default function AdminPage() {
 
   const computeSourceQuality = (): SourceQualityItem[] => {
     const todayStr = new Date().toISOString().split("T")[0];
-    const sources = ["devfolio", "unstop", "manual"];
+    const sources = ["devfolio", "unstop", "hackerearth", "internshala", "manual"];
     
     return sources.map((srcName) => {
       const filtered = opportunities.filter((opp) => {

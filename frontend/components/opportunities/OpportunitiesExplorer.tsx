@@ -289,11 +289,13 @@ export function OpportunitiesExplorer({ opportunities = [] }: OpportunitiesExplo
 
   // Dynamic filter count facets
   const sourceCounts = useMemo(() => {
-    const counts = { devfolio: 0, unstop: 0, manual: 0 };
+    const counts = { devfolio: 0, unstop: 0, hackerearth: 0, internshala: 0, manual: 0 };
     baseOpps.forEach((opp) => {
       const src = (opp.source || "manual").toLowerCase();
       if (src === "devfolio") counts.devfolio++;
       else if (src === "unstop") counts.unstop++;
+      else if (src === "hackerearth") counts.hackerearth++;
+      else if (src === "internshala") counts.internshala++;
       else counts.manual++;
     });
     return counts;
@@ -506,6 +508,8 @@ export function OpportunitiesExplorer({ opportunities = [] }: OpportunitiesExplo
           {[
             { key: "devfolio", label: "Devfolio" },
             { key: "unstop", label: "Unstop" },
+            { key: "hackerearth", label: "HackerEarth" },
+            { key: "internshala", label: "Internshala" },
             { key: "manual", label: "Manual" },
           ].map((src) => {
             const count = sourceCounts[src.key as keyof typeof sourceCounts] || 0;

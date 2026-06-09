@@ -20,6 +20,7 @@ export interface Opportunity {
   hash: string;           // SHA-256 fingerprint hash of normalized title + organizer for cross-platform deduplication
   createdAt?: unknown;    // Timestamp in DB
   updatedAt?: unknown;    // Timestamp in DB
+  isDeadlineEstimated?: boolean; // Indicates if the deadline is computed from relative posting age
 }
 
 export interface SourcePlugin {

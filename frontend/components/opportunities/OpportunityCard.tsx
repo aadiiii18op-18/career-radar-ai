@@ -177,6 +177,9 @@ export function OpportunityCard({
           Deadline:{" "}
           <span className="font-medium text-zinc-400">
             {formatDeadline(opportunity.deadline)}
+            {opportunity.isDeadlineEstimated && (
+              <span className="ml-1 text-[10px] font-normal text-zinc-500 italic" title="Deadline calculated dynamically from posting date">(Est.)</span>
+            )}
           </span>
         </p>
         <a

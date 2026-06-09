@@ -24,4 +24,5 @@ export interface Opportunity {
   views?: number;
   tags?: string[];
   hash?: string;
+  isDeadlineEstimated?: boolean;
 }

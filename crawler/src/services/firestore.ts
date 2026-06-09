@@ -1,4 +1,9 @@
 import * as admin from "firebase-admin";
+import * as fs from "fs";
+import * as path from "path";
+import * as os from "os";
+import { Firestore } from "@google-cloud/firestore";
+import { OAuth2Client } from "google-auth-library";
 import type { Opportunity } from "../types/opportunity";
 
 let db: admin.firestore.Firestore | null = null;
@@ -6,7 +11,7 @@ let db: admin.firestore.Firestore | null = null;
 /**
  * Initializes Firestore admin instance lazily.
  * Uses service account JSON from FIREBASE_SERVICE_ACCOUNT if available,
- * otherwise falls back to local default project ID initialization.
+ * otherwise falls back to local default project ID initialization or CLI credentials.
  */
 export function initFirestore(): admin.firestore.Firestore {
   if (db) return db;
@@ -21,22 +26,51 @@ export function initFirestore(): admin.firestore.Firestore {
         credential: admin.credential.cert(serviceAccount),
       });
       console.log("[Firestore Service] Initialized using Service Account environment variable.");
+      db = admin.firestore();
     } catch (err: any) {
       console.error("[Firestore Service] Failed to parse service account JSON:", err.message);
       admin.initializeApp({
         projectId: projectIdEnv,
       });
       console.log("[Firestore Service] Falling back to default project ID initialization.");
+      db = admin.firestore();
     }
   } else {
-    admin.initializeApp({
-      projectId: projectIdEnv,
-    });
-    console.log("[Firestore Service] Initialized using default project ID:", projectIdEnv);
+    // Try to load token from local Firebase CLI configstore
+    const configPath = path.join(os.homedir(), ".config", "configstore", "firebase-tools.json");
+    if (fs.existsSync(configPath)) {
+      try {
+        const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+        const accessToken = config.tokens?.access_token;
+        if (accessToken) {
+          const authClient = new OAuth2Client();
+          authClient.setCredentials({ access_token: accessToken });
+          db = new Firestore({
+            projectId: projectIdEnv,
+            authClient: authClient as any
+          }) as any;
+          console.log("[Firestore Service] Initialized direct Firestore client using local Firebase CLI token.");
+        } else {
+          throw new Error("No access token found in configstore.");
+        }
+      } catch (err: any) {
+        console.error("[Firestore Service] Failed to load local Firebase CLI token:", err.message);
+        admin.initializeApp({
+          projectId: projectIdEnv,
+        });
+        console.log("[Firestore Service] Falling back to default project ID initialization.");
+        db = admin.firestore();
+      }
+    } else {
+      admin.initializeApp({
+        projectId: projectIdEnv,
+      });
+      console.log("[Firestore Service] Initialized using default project ID:", projectIdEnv);
+      db = admin.firestore();
+    }
   }
 
-  db = admin.firestore();
-  return db;
+  return db!;
 }
 
 /**

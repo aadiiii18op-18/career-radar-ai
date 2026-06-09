@@ -359,7 +359,15 @@ export function OpportunityDetailClient({ id }: OpportunityDetailClientProps) {
               <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-zinc-400">
                 <p className="font-semibold text-zinc-200">{opportunity.organizer}</p>
                 <div className="h-4 w-[1px] bg-white/10 hidden sm:block" />
-                <p>Deadline: <span className="font-medium text-zinc-300">{formatDeadline(opportunity.deadline)}</span></p>
+                <p>
+                  Deadline:{" "}
+                  <span className="font-medium text-zinc-300">
+                    {formatDeadline(opportunity.deadline)}
+                    {opportunity.isDeadlineEstimated && (
+                      <span className="ml-1 text-[11px] text-zinc-500 italic" title="Deadline calculated dynamically from posting date">(Estimated)</span>
+                    )}
+                  </span>
+                </p>
                 {viewsCount !== undefined && (
                   <>
                     <div className="h-4 w-[1px] bg-white/10 hidden sm:block" />
@@ -540,7 +548,12 @@ export function OpportunityDetailClient({ id }: OpportunityDetailClientProps) {
                     {daysLeft > 0 ? `${daysLeft} days left` : daysLeft === 0 ? "Due today" : "Closed"}
                   </span>
                 </div>
-                <p className="text-xs text-zinc-400">Ends: {formatDeadline(opportunity.deadline)}</p>
+                <p className="text-xs text-zinc-400">
+                  Ends: {formatDeadline(opportunity.deadline)}
+                  {opportunity.isDeadlineEstimated && (
+                    <span className="ml-1 text-[10px] text-zinc-500 italic" title="Deadline calculated dynamically from posting date">(Est.)</span>
+                  )}
+                </p>
               </div>
 
               {/* Action Buttons */}
