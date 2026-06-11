@@ -11,6 +11,7 @@ interface OpportunityCardProps {
   matchReasons?: string[];
   trackerStatus?: "applied" | "interview" | "offer" | "rejected" | "none";
   onChangeTrackerStatus?: (status: "applied" | "interview" | "offer" | "rejected" | "none") => void;
+  maskAiFields?: boolean;
 }
 
 export function OpportunityCard({
@@ -21,6 +22,7 @@ export function OpportunityCard({
   matchReasons,
   trackerStatus,
   onChangeTrackerStatus,
+  maskAiFields,
 }: OpportunityCardProps) {
   const styles = categoryStyles[opportunity.category];
   const daysLeft = daysUntilDeadline(opportunity.deadline);
@@ -46,17 +48,26 @@ export function OpportunityCard({
             </span>
           )}
           {matchScore !== undefined && (
-            <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${
-              matchScore >= 90
-                ? "bg-emerald-500/10 text-emerald-400 ring-emerald-500/20"
-                : matchScore >= 75
-                  ? "bg-indigo-500/10 text-indigo-400 ring-indigo-500/20"
-                  : matchScore >= 50
-                    ? "bg-amber-500/10 text-amber-400 ring-amber-500/20"
-                    : "bg-zinc-500/10 text-zinc-400 ring-zinc-500/20"
-            }`}>
-              ⚡ {matchScore}% Match
-            </span>
+            maskAiFields ? (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-indigo-500/10 px-2.5 py-1 text-xs font-semibold text-indigo-400 ring-1 ring-indigo-500/20">
+                <svg className="h-3 w-3 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                <span className="blur-[3px] select-none font-mono">92%</span> Match
+              </span>
+            ) : (
+              <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${
+                matchScore >= 90
+                  ? "bg-emerald-500/10 text-emerald-400 ring-emerald-500/20"
+                  : matchScore >= 75
+                    ? "bg-indigo-500/10 text-indigo-400 ring-indigo-500/20"
+                    : matchScore >= 50
+                      ? "bg-amber-500/10 text-amber-400 ring-amber-500/20"
+                      : "bg-zinc-500/10 text-zinc-400 ring-zinc-500/20"
+              }`}>
+                ⚡ {matchScore}% Match
+              </span>
+            )
           )}
           {trackerStatus && trackerStatus !== "none" && (
             <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${
@@ -126,8 +137,18 @@ export function OpportunityCard({
 
       {/* AI Recommendation callout box */}
       {matchScore !== undefined && matchReasons && matchReasons.length > 0 && (
-        <div className="mt-4 rounded-xl bg-white/[0.01] border border-white/5 p-3.5">
-          <div className="text-[10px] font-bold tracking-wider uppercase text-zinc-500 mb-2 flex items-center justify-between">
+        <div className="mt-4 rounded-xl bg-white/[0.01] border border-white/5 p-3.5 relative overflow-hidden">
+          {maskAiFields && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-zinc-950/60 backdrop-blur-[2.5px]">
+              <span className="text-[10px] font-semibold tracking-wider uppercase text-indigo-300 flex items-center gap-1.5 bg-zinc-900/90 px-2.5 py-1.5 rounded-full border border-white/5">
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                Sign In to Unlock
+              </span>
+            </div>
+          )}
+          <div className={`text-[10px] font-bold tracking-wider uppercase text-zinc-500 mb-2 flex items-center justify-between ${maskAiFields ? 'blur-[1.5px] select-none' : ''}`}>
             <span>⚡ AI RECOMMENDATION</span>
             <span className={`text-[10px] font-bold ${
               matchScore >= 90
@@ -141,7 +162,7 @@ export function OpportunityCard({
               {matchScore >= 90 ? "Excellent Match" : matchScore >= 75 ? "Strong Match" : matchScore >= 50 ? "Moderate Match" : "Weak Match"}
             </span>
           </div>
-          <div className="flex flex-col gap-1.5">
+          <div className={`flex flex-col gap-1.5 ${maskAiFields ? 'blur-[2px] select-none' : ''}`}>
             {matchReasons.slice(0, 2).map((reason, idx) => (
               <span key={idx} className="text-xs text-zinc-300 flex items-start gap-1.5 leading-normal">
                 <span className="text-indigo-400 font-semibold shrink-0">•</span>
