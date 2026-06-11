@@ -19,6 +19,7 @@ import type { Opportunity } from "@/types/opportunity";
 import type { UserProfile } from "@/types/profile";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { AnimatedCounter, ScrollReveal } from "./MotionComponents";
 
 // Interface for opportunities with pre-calculated match scores
 interface ScoredOpportunity extends Opportunity {
@@ -347,7 +348,8 @@ export function PersonalizedFeed() {
     if (items.length === 0 && !isLockedSection) return null;
 
     return (
-      <section className="space-y-6">
+      <ScrollReveal>
+        <section className="space-y-6">
         <div className="flex items-end justify-between border-b border-white/5 pb-4">
           <div>
             <h2 className="text-xl font-bold tracking-tight text-white sm:text-2xl flex items-center gap-2">
@@ -437,6 +439,7 @@ export function PersonalizedFeed() {
           </div>
         )}
       </section>
+      </ScrollReveal>
     );
   };
 
@@ -495,65 +498,73 @@ export function PersonalizedFeed() {
   return (
     <div className="space-y-12">
       {/* 1. Welcome Back Banner */}
-      <div className="relative rounded-2xl border border-white/5 bg-white/[0.01] p-6 sm:p-8 backdrop-blur-md overflow-hidden">
-        <div className="pointer-events-none absolute inset-x-0 -top-8 h-48 grid-overlay opacity-25" aria-hidden />
-        <div className="relative z-10">
-          <p className="text-xs font-semibold uppercase tracking-widest text-indigo-400">
-            Feed Overview
-          </p>
-          <h1 className="mt-3 text-2xl font-bold tracking-tight text-white sm:text-3xl">
-            Welcome back, <span className="text-gradient">{greetingName}</span>
-          </h1>
-          <p className="mt-2 text-sm text-zinc-400 max-w-xl leading-relaxed">
-            There are <span className="font-semibold text-white">{activeOpportunities.length}</span> opportunities open today. 
-            We found <span className="font-semibold text-indigo-300">{highMatchCount}</span> roles matching your skills and goals.
-          </p>
+      <ScrollReveal>
+        <div className="relative rounded-2xl border border-white/5 bg-white/[0.01] p-6 sm:p-8 backdrop-blur-md overflow-hidden">
+          <div className="pointer-events-none absolute inset-x-0 -top-8 h-48 grid-overlay opacity-25" aria-hidden />
+          <div className="relative z-10">
+            <p className="text-xs font-semibold uppercase tracking-widest text-indigo-400">
+              Feed Overview
+            </p>
+            <h1 className="mt-3 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+              Welcome back, <span className="text-gradient">{greetingName}</span>
+            </h1>
+            <p className="mt-2 text-sm text-zinc-400 max-w-xl leading-relaxed">
+              There are <span className="font-semibold text-white">{activeOpportunities.length}</span> opportunities open today. 
+              We found <span className="font-semibold text-indigo-300">{highMatchCount}</span> roles matching your skills and goals.
+            </p>
+          </div>
         </div>
-      </div>
+      </ScrollReveal>
 
       {/* 2. Profile Completion Checklist Banner */}
       {missingFields.length > 0 && (
-        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5 backdrop-blur-md">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <span className="text-xl shrink-0 mt-0.5" role="img" aria-label="alert">⚡</span>
-              <div>
-                <h3 className="font-semibold text-white text-sm sm:text-base">Complete your profile to refine matches</h3>
-                <p className="text-zinc-400 text-xs sm:text-sm mt-0.5 leading-normal">
-                  Your recommendations will be much more accurate once you configure your missing fields:{" "}
-                  <span className="text-amber-300 font-medium">{missingFields.join(", ")}</span>.
-                </p>
+        <ScrollReveal>
+          <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5 backdrop-blur-md">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <span className="text-xl shrink-0 mt-0.5" role="img" aria-label="alert">⚡</span>
+                <div>
+                  <h3 className="font-semibold text-white text-sm sm:text-base">Complete your profile to refine matches</h3>
+                  <p className="text-zinc-400 text-xs sm:text-sm mt-0.5 leading-normal">
+                    Your recommendations will be much more accurate once you configure your missing fields:{" "}
+                    <span className="text-amber-300 font-medium">{missingFields.join(", ")}</span>.
+                  </p>
+                </div>
               </div>
+              <Link 
+                href="/profile" 
+                className="shrink-0 rounded-full bg-amber-500/15 border border-amber-500/30 px-4 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500/25 transition-all text-center self-start sm:self-auto"
+              >
+                Update Profile
+              </Link>
             </div>
-            <Link 
-              href="/profile" 
-              className="shrink-0 rounded-full bg-amber-500/15 border border-amber-500/30 px-4 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500/25 transition-all text-center self-start sm:self-auto"
-            >
-              Update Profile
-            </Link>
           </div>
-        </div>
+        </ScrollReveal>
       )}
 
       {/* 3. Quick Stats Cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        {[
-          { label: "Total Opportunities", value: activeOpportunities.length, iconColor: "text-indigo-400 bg-indigo-500/10 border-indigo-500/20", icon: "M2.25 13.5h3.86a2.25 2.25 0 012.008 1.24l.885 1.77a2.25 2.25 0 002.007 1.24h1.98a2.25 2.25 0 002.007-1.24l.885-1.77a2.25 2.25 0 012.007-1.24h3.86m-18 0h18" },
-          { label: "Internships Available", value: internshipsCount, iconColor: "text-violet-400 bg-violet-500/10 border-violet-500/20", icon: "M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A47.79 47.79 0 0112 15.75c-2.248 0-4.447-.137-6.587-.404a2.245 2.245 0 01-.673-.38m0 0A2.18 2.18 0 014 12.49V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0014.25 3h-4.5A2.25 2.25 0 007.5 5.25v.054m9 0c-.815-.027-1.637-.041-2.462-.041-1.127 0-2.231.026-3.288.077m0 0a48.11 48.11 0 013.288-.077" },
-          { label: "Saved Opportunities", value: savedIds.length, iconColor: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20", icon: "M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" },
-          { label: "High Match Roles", value: highMatchCount, iconColor: "text-cyan-400 bg-cyan-500/10 border-cyan-500/20", icon: "M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" },
-        ].map((stat) => (
-          <div key={stat.label} className="rounded-2xl border border-white/5 bg-white/[0.02] p-5 backdrop-blur-md">
-            <div className={`mb-3 inline-flex rounded-xl p-2.5 ring-1 ring-inset border ${stat.iconColor}`}>
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden>
-                <path strokeLinecap="round" strokeLinejoin="round" d={stat.icon} />
-              </svg>
+      <ScrollReveal>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {[
+            { label: "Total Opportunities", value: activeOpportunities.length, iconColor: "text-indigo-400 bg-indigo-500/10 border-indigo-500/20", icon: "M2.25 13.5h3.86a2.25 2.25 0 012.008 1.24l.885 1.77a2.25 2.25 0 002.007 1.24h1.98a2.25 2.25 0 002.007-1.24l.885-1.77a2.25 2.25 0 012.007-1.24h3.86m-18 0h18" },
+            { label: "Internships Available", value: internshipsCount, iconColor: "text-violet-400 bg-violet-500/10 border-violet-500/20", icon: "M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A47.79 47.79 0 0112 15.75c-2.248 0-4.447-.137-6.587-.404a2.245 2.245 0 01-.673-.38m0 0A2.18 2.18 0 014 12.49V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0014.25 3h-4.5A2.25 2.25 0 007.5 5.25v.054m9 0c-.815-.027-1.637-.041-2.462-.041-1.127 0-2.231.026-3.288.077m0 0a48.11 48.11 0 013.288-.077" },
+            { label: "Saved Opportunities", value: savedIds.length, iconColor: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20", icon: "M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" },
+            { label: "High Match Roles", value: highMatchCount, iconColor: "text-cyan-400 bg-cyan-500/10 border-cyan-500/20", icon: "M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" },
+          ].map((stat) => (
+            <div key={stat.label} className="rounded-2xl border border-white/5 bg-white/[0.02] p-5 backdrop-blur-md">
+              <div className={`mb-3 inline-flex rounded-xl p-2.5 ring-1 ring-inset border ${stat.iconColor}`}>
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d={stat.icon} />
+                </svg>
+              </div>
+              <p className="text-2xl font-bold tracking-tight text-white">
+                <AnimatedCounter value={stat.value} />
+              </p>
+              <p className="mt-1 text-xs text-zinc-400 font-medium">{stat.label}</p>
             </div>
-            <p className="text-2xl font-bold tracking-tight text-white">{stat.value}</p>
-            <p className="mt-1 text-xs text-zinc-400 font-medium">{stat.label}</p>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      </ScrollReveal>
 
       {/* 4. Continue Your Applications */}
       {continueApplications.length > 0 && renderRow(

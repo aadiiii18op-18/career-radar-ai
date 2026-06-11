@@ -1,7 +1,10 @@
+"use client";
+
 import { categoryStyles } from "@/lib/categories";
 import { daysUntilDeadline, formatDeadline } from "@/lib/format-date";
 import type { Opportunity } from "@/types/opportunity";
 import Link from "next/link";
+import { motion, useReducedMotion } from "framer-motion";
 
 interface OpportunityCardProps {
   opportunity: Opportunity;
@@ -32,9 +35,24 @@ export function OpportunityCard({
       : daysLeft <= 30
         ? "text-amber-400"
         : "text-zinc-500";
+  const shouldReduceMotion = useReducedMotion();
+
+  const hoverAnimation = shouldReduceMotion
+    ? {}
+    : {
+        y: -4,
+        scale: 1.015,
+        boxShadow: "0 20px 40px -15px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.08)",
+        borderColor: "rgba(129, 140, 248, 0.2)", // Subtle indigo glow
+        background: "rgba(255, 255, 255, 0.035)",
+      };
 
   return (
-    <article className="group flex flex-col rounded-2xl border border-white/5 bg-white/[0.02] p-6 transition-all hover:border-white/10 hover:bg-white/[0.04]">
+    <motion.article
+      whileHover={hoverAnimation}
+      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] as const }}
+      className="group flex flex-col h-full rounded-2xl border border-white/5 bg-white/[0.02] p-6 transition-colors"
+    >
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-wrap items-center gap-2">
           <span
@@ -226,6 +244,6 @@ export function OpportunityCard({
           </svg>
         </a>
       </div>
-    </article>
+    </motion.article>
   );
 }

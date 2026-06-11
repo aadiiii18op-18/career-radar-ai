@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { motion } from "framer-motion";
 
 const opportunityTypes = [
   { label: "Internships", color: "from-violet-500/20 to-violet-500/5 border-violet-500/20" },
@@ -8,33 +11,71 @@ const opportunityTypes = [
   { label: "Competitions", color: "from-rose-500/20 to-rose-500/5 border-rose-500/20" },
 ];
 
+const containerVariants = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.08,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 16 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.6,
+      ease: [0.16, 1, 0.3, 1] as const, // premium easeOutExpo
+    },
+  },
+};
+
 export function Hero() {
   return (
     <section className="relative overflow-hidden pt-28 pb-20 sm:pt-36 sm:pb-28">
       <div className="pointer-events-none absolute inset-0 grid-overlay" aria-hidden />
 
       <div className="relative mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-3xl text-center">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-sm text-zinc-300 backdrop-blur-sm">
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="mx-auto max-w-3xl text-center"
+        >
+          <motion.div
+            variants={itemVariants}
+            className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-sm text-zinc-300 backdrop-blur-sm"
+          >
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
             </span>
             Now in early access — built for students
-          </div>
+          </motion.div>
 
-          <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl lg:leading-[1.1]">
+          <motion.h1
+            variants={itemVariants}
+            className="text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl lg:leading-[1.1]"
+          >
             Discover opportunities that{" "}
             <span className="text-gradient">move your career forward</span>
-          </h1>
+          </motion.h1>
 
-          <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-zinc-400 sm:text-xl">
+          <motion.p
+            variants={itemVariants}
+            className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-zinc-400 sm:text-xl"
+          >
             Career Radar AI scans the landscape so you don&apos;t have to — surfacing
             internships, hackathons, scholarships, fellowships, and competitions
             tailored to your goals.
-          </p>
+          </motion.p>
 
-          <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+          <motion.div
+            variants={itemVariants}
+            className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row"
+          >
             <Link
               href="/opportunities"
               className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-indigo-500 to-cyan-500 px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/30 transition-all hover:shadow-indigo-500/50 sm:w-auto"
@@ -50,21 +91,32 @@ export function Hero() {
             >
               See how it works
             </a>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
 
-        <div className="mt-16 flex flex-wrap items-center justify-center gap-3">
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="mt-16 flex flex-wrap items-center justify-center gap-3"
+        >
           {opportunityTypes.map((type) => (
-            <span
+            <motion.span
+              variants={itemVariants}
               key={type.label}
               className={`inline-flex items-center rounded-full border bg-gradient-to-b px-4 py-2 text-sm font-medium text-zinc-200 ${type.color}`}
             >
               {type.label}
-            </span>
+            </motion.span>
           ))}
-        </div>
+        </motion.div>
 
-        <div className="relative mx-auto mt-16 max-w-4xl">
+        <motion.div
+          initial={{ opacity: 0, y: 32 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1], delay: 0.4 }}
+          className="relative mx-auto mt-16 max-w-4xl"
+        >
           <div className="glow-ring overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/50 p-1 backdrop-blur-sm">
             <div className="rounded-xl bg-zinc-950/80 p-6 sm:p-8">
               <div className="mb-4 flex items-center gap-2">
@@ -96,7 +148,7 @@ export function Hero() {
               </div>
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
     </section>
   );

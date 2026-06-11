@@ -1,8 +1,12 @@
+"use client";
+
+import { AnimatedCounter } from "@/components/opportunities/MotionComponents";
+
 const stats = [
-  { value: "10K+", label: "Opportunities indexed", sub: "Across 50+ countries" },
-  { value: "5", label: "Opportunity types", sub: "One unified platform" },
-  { value: "98%", label: "Match accuracy", sub: "AI-powered recommendations" },
-  { value: "24/7", label: "Fresh listings", sub: "Updated continuously" },
+  { value: 10, suffix: "K+", label: "Opportunities indexed", sub: "Across 50+ countries" },
+  { value: 5, suffix: "", label: "Opportunity types", sub: "One unified platform" },
+  { value: 98, suffix: "%", label: "Match accuracy", sub: "AI-powered recommendations" },
+  { value: 24, suffix: "/7", label: "Fresh listings", sub: "Updated continuously" },
 ];
 
 export function Stats() {
@@ -16,7 +20,7 @@ export function Stats() {
             {stats.map((stat) => (
               <div key={stat.label} className="px-8 py-10 text-center sm:py-12">
                 <p className="text-4xl font-bold tracking-tight text-gradient sm:text-5xl">
-                  {stat.value}
+                  <AnimatedCounter value={stat.value} suffix={stat.suffix} />
                 </p>
                 <p className="mt-2 text-sm font-semibold text-white">{stat.label}</p>
                 <p className="mt-1 text-xs text-zinc-500">{stat.sub}</p>
