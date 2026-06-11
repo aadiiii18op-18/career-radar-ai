@@ -19,7 +19,7 @@ import type { Opportunity } from "@/types/opportunity";
 import type { UserProfile } from "@/types/profile";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AnimatedCounter, ScrollReveal } from "./MotionComponents";
+import { AnimatedCounter, ScrollReveal, ShimmerSkeletonCard, FloatingBlob } from "./MotionComponents";
 
 // Interface for opportunities with pre-calculated match scores
 interface ScoredOpportunity extends Opportunity {
@@ -298,10 +298,11 @@ export function PersonalizedFeed() {
   // loading skeleton views
   if (authLoading || loadingData) {
     return (
-      <div className="space-y-12 py-10">
+      <div className="relative space-y-12 py-10">
+        <FloatingBlob />
         {/* Welcome message skeleton */}
         {user && (
-          <div className="space-y-3 max-w-xl animate-pulse">
+          <div className="space-y-3 max-w-xl shimmer-sweep">
             <div className="h-4 w-24 rounded bg-white/5" />
             <div className="h-8 w-64 rounded bg-white/5" />
             <div className="h-5 w-80 rounded bg-white/5" />
@@ -312,7 +313,7 @@ export function PersonalizedFeed() {
         {user && (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-28 animate-pulse rounded-2xl border border-white/5 bg-white/[0.02] p-5" />
+              <div key={i} className="h-28 shimmer-sweep rounded-2xl border border-white/5 bg-white/[0.01] p-5" />
             ))}
           </div>
         )}
@@ -328,7 +329,7 @@ export function PersonalizedFeed() {
             </div>
             <div className="flex gap-6 overflow-hidden">
               {[1, 2, 3].map((c) => (
-                <div key={c} className="h-64 w-80 shrink-0 animate-pulse rounded-2xl border border-white/5 bg-white/[0.02]" />
+                <ShimmerSkeletonCard key={c} />
               ))}
             </div>
           </div>
@@ -446,7 +447,8 @@ export function PersonalizedFeed() {
   // LOGGED-OUT HOME FEED PORTION (Category Carousels)
   if (!user) {
     return (
-      <div className="space-y-16">
+      <div className="relative space-y-16">
+        <FloatingBlob />
         {renderRow(
           "Recommended For You",
           "Custom matching opportunities based on your skills, interests, and academic level.",
@@ -496,7 +498,8 @@ export function PersonalizedFeed() {
 
   // LOGGED-IN HOME DASHBOARD FEED LAYOUT
   return (
-    <div className="space-y-12">
+    <div className="relative space-y-12">
+      <FloatingBlob />
       {/* 1. Welcome Back Banner */}
       <ScrollReveal>
         <div className="relative rounded-2xl border border-white/5 bg-white/[0.01] p-6 sm:p-8 backdrop-blur-md overflow-hidden">

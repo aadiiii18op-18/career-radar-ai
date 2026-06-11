@@ -5,6 +5,7 @@ import { daysUntilDeadline, formatDeadline } from "@/lib/format-date";
 import type { Opportunity } from "@/types/opportunity";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
+import { AnimatedMatchScore } from "./MotionComponents";
 
 interface OpportunityCardProps {
   opportunity: Opportunity;
@@ -42,16 +43,13 @@ export function OpportunityCard({
     : {
         y: -4,
         scale: 1.015,
-        boxShadow: "0 20px 40px -15px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.08)",
-        borderColor: "rgba(129, 140, 248, 0.2)", // Subtle indigo glow
-        background: "rgba(255, 255, 255, 0.035)",
       };
 
   return (
     <motion.article
       whileHover={hoverAnimation}
       transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] as const }}
-      className="group flex flex-col h-full rounded-2xl border border-white/5 bg-white/[0.02] p-6 transition-colors"
+      className="group flex flex-col h-full rounded-2xl border border-white/5 bg-white/[0.02] p-6 transition-all duration-300 hover:bg-white/[0.035] hover:border-indigo-500/20 hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.08)]"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-wrap items-center gap-2">
@@ -83,7 +81,7 @@ export function OpportunityCard({
                       ? "bg-amber-500/10 text-amber-400 ring-amber-500/20"
                       : "bg-zinc-500/10 text-zinc-400 ring-zinc-500/20"
               }`}>
-                ⚡ {matchScore}% Match
+                ⚡ <AnimatedMatchScore value={matchScore} />% Match
               </span>
             )
           )}
